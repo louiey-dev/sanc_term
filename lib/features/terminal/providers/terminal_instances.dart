@@ -1,17 +1,45 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:xterm/xterm.dart';
+import 'package:sanc_term/features/terminal/models/terminal_tab.dart';
 
 part 'terminal_instances.g.dart';
 
 @Riverpod(keepAlive: true)
-Terminal serialTerminal(Ref ref) => Terminal();
+class TerminalTabsNotifier extends _$TerminalTabsNotifier {
+  int _serialCount = 1;
+  int _ptyCount = 1;
 
-@Riverpod(keepAlive: true)
-Terminal ptyTerminal(Ref ref) => Terminal();
+  @override
+  List<TerminalTab> build() => [
+        TerminalTab(id: 'serial_0', type: TerminalTabType.serial, label: 'SERIAL'),
+        TerminalTab(id: 'pty_0', type: TerminalTabType.pty, label: 'PTY'),
+      ];
 
-@Riverpod(keepAlive: true)
-TerminalController serialTerminalController(Ref ref) => TerminalController();
+  void addSerial() {
+    _serialCount++;
+    state = [
+      ...state,
+      TerminalTab(
+        id: 'serial_${DateTime.now().millisecondsSinceEpoch}',
+        type: TerminalTabType.serial,
+        label: 'SERIAL $_serialCount',
+      ),
+    ];
+  }
 
-@Riverpod(keepAlive: true)
-TerminalController ptyTerminalController(Ref ref) => TerminalController();
+  void addPty() {
+    _ptyCount++;
+    state = [
+      ...state,
+      TerminalTab(
+        id: 'pty_${DateTime.now().millisecondsSinceEpoch}',
+        type: TerminalTabType.pty,
+        label: 'PTY $_ptyCount',
+      ),
+    ];
+  }
+
+  void removeTab(String id) {
+    if (state.length <= 1) return;
+    state = state.where((t) => t.id != id).toList();
+  }
+}

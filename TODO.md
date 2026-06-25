@@ -71,10 +71,12 @@ Details and features will evolve during implementation, but the design doc is th
 - [x] Design connection bar (status pill: `COM3 | 115200 | UTF-8 | Connected ●`)
   — `lib/features/connection/widgets/connection_bar.dart`
   — Port scan, port/baud/encoding/newline dropdowns, connect/disconnect, status pill
-- [x] Add tab support to log panel (serial + UDP side by side using `xterm`)
+- [x] Split-view log panel (all terminals visible at once, drag-to-resize)
   — `lib/features/terminal/widgets/log_panel.dart`
-  — SERIAL tab + PTY tab, xterm TerminalView, pause/clear, right-click copy/paste
-  — PTY auto-starts shell (`cmd.exe /k chcp 65001` on Windows)
+  — `MultiSplitView(axis: horizontal)` — one pane per terminal, not tabs
+  — `TerminalTabsNotifier` owns the list; `+` menu adds Serial/PTY, `×` closes a pane
+  — Each pane has its own xterm TerminalView, label, clear, right-click copy/paste
+  — PTY auto-starts shell (`cmd.exe /k chcp 65001` on Windows); killed on pane close
   — xterm moved from dev_dependencies to dependencies
 - [x] Drive sidebar groups from `panel_registry` (data-driven, not hardcoded)
   — done in Priority 2; `panelGroups` const drives both sidebar and registry

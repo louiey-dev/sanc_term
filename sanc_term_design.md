@@ -1,6 +1,6 @@
 # sanc_term — Architecture & Design Guide
 
-This app is updated version of flutter_terminal(D:\GIT\Flutter\flutter_terminal).
+This app is updated version of flutter_terminal.
 It's designed to be more modular with more features.
 
 ## What's Wrong with `flutter_terminal` (to fix)
@@ -21,38 +21,144 @@ It's designed to be more modular with more features.
 lib/
 ├── core/
 │   ├── router/           # go_router config
-│   ├── theme/            # AppColors, AppTheme
-│   └── utils/            # formatters, ANSI stripper
+│   ├── theme/            # AppColors, AppTheme, themeModeProvider
+│   └── utils/            # app_logger, formatters, snackbars
 │
-├── services/             # I/O singletons, exposed via Riverpod
+├── services/             # Raw I/O — keepAlive Riverpod providers, no widgets
 │   ├── serial_service.dart
 │   ├── udp_service.dart
-│   └── pty_service.dart
+│   ├── pty_service.dart
+│   └── file_logger_service.dart
 │
-├── features/
-│   ├── connection/       # port selection, baud, connect state
-│   │   ├── providers/
-│   │   ├── widgets/
-│   │   └── models/
-│   ├── terminal/         # xterm log panel
-│   │   ├── providers/
-│   │   └── widgets/
+├── features/             # One folder per user-facing feature
+│   ├── connection/
+│   │   ├── providers/    # ConnectionNotifier, SerialConfigNotifier, BoardProfileService
+│   │   ├── widgets/      # ConnectionBar, BoardProfilePicker
+│   │   └── models/       # (feature-local models if not shared)
+│   ├── terminal/
+│   │   ├── providers/    # terminal_instances (xterm Terminal objects)
+│   │   └── widgets/      # LogPanel
+│   ├── home/
+│   │   └── widgets/      # MenuSidebar
 │   ├── cmd_history/
 │   ├── settings/
 │   └── panels/
-│       ├── common/
+│       ├── common/       # StubPanel, NotFoundPanel
+│       ├── models/       # PanelEntry
 │       ├── nvidia/
 │       ├── rockchip/
 │       ├── diagnostics/
 │       ├── esp/
-│       └── panel_registry.dart   ← replaces the big switch
+│       ├── lte/
+│       └── panel_registry.dart
 │
 └── shared/
-    ├── widgets/          # MyPanel, InfoTile, StatusBadge
-    └── models/           # BoardCommand, LogEntry
+    ├── widgets/          # MyPanel, InfoTile, ProgressBar, StatusBadge, buildDropdown
+    └── models/           # SerialConfig, LogEntry, BoardCommand, BoardProfile
 ```
 
-> **Key win:** Each feature is self-contained. Adding a new panel means creating one folder with its own provider, model, and widget — no changes to `home_screen.dart`.
+> **Key win:** Each feature is self-contained. Adding a new panel means creating one folder
+> with its own provider, model, and widget — no changes to `home_screen.dart`.
+
+---
+
+## What Goes Where — Decision Guide
+
+### `services/` — Raw I/O, no UI
+
+Wraps hardware, sockets, or the file system directly. No Flutter widget imports.
+These are `@Riverpod(keepAlive: true)` providers that own one resource each.
+
+**Goes here:**
+
+- Opening/closing a serial port (`SerialService`)
+- Binding a UDP socket (`UdpService`)
+- Spawning a PTY process (`PtyService`)
+- Writing bytes to a log file (`FileLoggerService`)
+
+**Does not go here:** Connection *state* (connected/disconnected), user-triggered logic,
+anything that reacts to button presses. Those belong in `features/X/providers/`.
+
+> **Test:** Would this class exist in a non-Flutter Dart CLI app? Yes → `services/`.
+
+---
+
+### `features/` — Business Logic + Feature UI
+
+Each feature subfolder owns everything for one user-facing capability.
+Internal layout: `providers/`, `widgets/`, and optionally `models/`.
+
+#### `features/X/providers/`
+
+Riverpod notifiers that translate user actions into state, using `services/` under the hood.
+
+| File | Role |
+| ---- | ---- |
+| `connection_provider.dart` | Owns `Connected/Disconnected` state; calls `SerialService` |
+| `serial_config_notifier.dart` | Owns current port / baud / encoding selection |
+| `board_profile_service.dart` | Loads and saves profiles from Hive |
+| `terminal_instances.dart` | Owns the `xterm.Terminal` and `TerminalController` instances |
+
+> **Service vs provider:** `SerialService` *opens the port*. `ConnectionNotifier` *decides
+> when to open it* and tracks whether it is open. Service = mechanism, provider = decision.
+
+#### `features/X/widgets/`
+
+UI that only makes sense inside that one feature. Has imports from its own `providers/`.
+
+| File | Why it stays here |
+| ---- | ----------------- |
+| `connection_bar.dart` | Only meaningful in the connection feature |
+| `log_panel.dart` | Only meaningful in the terminal feature |
+| `menu_sidebar.dart` | Only meaningful in the home screen layout |
+
+> **Test:** If you deleted the entire `features/connection/` folder, would widgets from
+> *other* features break? If yes, the broken parts belong in `shared/` instead.
+
+---
+
+### `shared/` — Reused Across Multiple Features
+
+#### `shared/widgets/`
+
+Generic UI components with zero feature-specific logic.
+No imports from any `features/` subfolder.
+
+| Widget | Why it is shared |
+| ------ | ---------------- |
+| `MyPanel`, `PanelHeader`, `PanelBody` | Used by every panel — nvidia, rockchip, esp, diagnostics |
+| `InfoTile`, `ProgressBar`, `StatusBadge` | Generic display components used across panels |
+| `buildDropdown`, `ToolbarDivider` | Generic toolbar primitives |
+
+#### `shared/models/`
+
+Freezed data models referenced by more than one feature.
+
+| Model | Why it is shared |
+| ----- | ---------------- |
+| `SerialConfig` | Used by `connection/` (configure) and `services/` (open port) |
+| `BoardProfile` | Used by `connection/` (save) and panels (read current target type) |
+| `LogEntry` | Consumed by `terminal/` and written by `services/` |
+| `BoardCommand` | Shared between panels and the command-history feature |
+
+> **Feature-local vs shared:** Start a model in `features/X/models/`. Move it to
+> `shared/models/` the moment a second unrelated feature needs to import it.
+
+---
+
+### `core/` — App Infrastructure
+
+Things the whole app depends on that are not a user-facing feature.
+
+| Folder | Contents |
+| ------ | -------- |
+| `core/router/` | `go_router` config, route definitions |
+| `core/theme/` | `AppColors` (ThemeExtension), `AppTheme`, `themeModeProvider` |
+| `core/utils/` | Pure utilities: `stripAnsi`, byte converters, `log`, `showSnackbar` |
+
+> **Core vs shared:** `core/` is the skeleton the app cannot run without (router, theme).
+> `shared/` is reusable bricks that features build with.
+> A theme color → `core/`. A panel card layout → `shared/`.
 
 ---
 

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/features/connection/providers/board_profile_service.dart';
-import 'package:sanc_term/features/connection/providers/serial_config_notifier.dart';
+import 'package:sanc_term/features/connection/providers/serial_pane_provider.dart';
 import 'package:sanc_term/shared/models/board_profile.dart';
 
 class BoardProfilePicker extends ConsumerWidget {
@@ -23,7 +23,10 @@ class BoardProfilePicker extends ConsumerWidget {
           return;
         }
         final profile = profiles.firstWhere((p) => p.id == id);
-        final notifier = ref.read(serialConfigNotifierProvider.notifier);
+        final activeId = ref.read(effectiveActiveSerialTabIdProvider);
+        if (activeId == null) return;
+        final notifier =
+            ref.read(serialPaneNotifierProvider(activeId).notifier);
         notifier.setPort(profile.port);
         notifier.setBaudRate(profile.baudRate);
       },
@@ -107,7 +110,10 @@ class BoardProfilePicker extends ConsumerWidget {
             onPressed: () {
               final name = nameCtrl.text.trim();
               if (name.isEmpty) return;
-              final config = ref.read(serialConfigNotifierProvider);
+              final activeId = ref.read(effectiveActiveSerialTabIdProvider);
+              if (activeId == null) return;
+              final config =
+                  ref.read(serialPaneNotifierProvider(activeId)).config;
               final profile = BoardProfile(
                 id: DateTime.now().millisecondsSinceEpoch.toString(),
                 name: name,

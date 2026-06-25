@@ -16,6 +16,8 @@ terminal app which supports xtem/uart/udp and so on.
 - 2026.06.25
   - Preparing based on flutter_terminal app for more better architect and performance
   - implemented basic features at `sanc_term_design.md`
+  - multiple uart/pty window open support
+  - log file dir is desktop by default
 
 ## Info
 

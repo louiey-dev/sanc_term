@@ -30,6 +30,7 @@ class FileLoggerNotifier extends _$FileLoggerNotifier {
   Future<bool> startLogging() async {
     final dir = await FilePicker.getDirectoryPath(
       dialogTitle: 'Select folder to save log',
+      initialDirectory: _desktopPath(),
     );
     if (dir == null) return false;
 
@@ -64,6 +65,16 @@ class FileLoggerNotifier extends _$FileLoggerNotifier {
       isLogging: false,
       timestampEnabled: state.timestampEnabled,
     );
+  }
+
+  /// Best-effort path to the user's Desktop, used as the picker's start folder.
+  String? _desktopPath() {
+    final home = Platform.isWindows
+        ? Platform.environment['USERPROFILE']
+        : Platform.environment['HOME'];
+    if (home == null) return null;
+    final desktop = Directory(p.join(home, 'Desktop'));
+    return desktop.existsSync() ? desktop.path : home;
   }
 
   void setTimestamp(bool enabled) {

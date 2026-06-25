@@ -6,23 +6,6 @@ part of 'serial_config_notifier.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$serialConfigNotifierHash() =>
-    r'201eacee2b8c2115a85e6edbe7f20c6b719d63fd';
-
-/// See also [SerialConfigNotifier].
-@ProviderFor(SerialConfigNotifier)
-final serialConfigNotifierProvider =
-    AutoDisposeNotifierProvider<SerialConfigNotifier, SerialConfig>.internal(
-      SerialConfigNotifier.new,
-      name: r'serialConfigNotifierProvider',
-      debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-          ? null
-          : _$serialConfigNotifierHash,
-      dependencies: null,
-      allTransitiveDependencies: null,
-    );
-
-typedef _$SerialConfigNotifier = AutoDisposeNotifier<SerialConfig>;
 String _$availablePortsNotifierHash() =>
     r'782e9fcb4d5d2aae18a6774878be7d9478473fde';
 

@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/core/theme/theme_provider.dart';
-import 'package:sanc_term/features/connection/providers/connection_provider.dart';
 import 'package:sanc_term/features/connection/providers/serial_config_notifier.dart';
+import 'package:sanc_term/features/connection/providers/serial_pane_provider.dart';
 import 'package:sanc_term/features/connection/widgets/board_profile_picker.dart';
+import 'package:sanc_term/features/terminal/providers/terminal_instances.dart';
 import 'package:sanc_term/shared/models/serial_config.dart';
 import 'package:sanc_term/shared/widgets/common.dart';
 
@@ -38,13 +39,27 @@ class ConnectionBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
-    final config = ref.watch(serialConfigNotifierProvider);
     final ports = ref.watch(availablePortsNotifierProvider);
-    final connState = ref.watch(connectionNotifierProvider);
-    final isConnected = connState is Connected;
-    final cfgNotifier = ref.read(serialConfigNotifierProvider.notifier);
     final themeMode = ref.watch(themeModeProvider);
     final isDark = themeMode == ThemeMode.dark;
+
+    // Resolve the SERIAL pane the bar currently controls.
+    final activeId = ref.watch(effectiveActiveSerialTabIdProvider);
+    final hasPane = activeId != null;
+    final pane = hasPane
+        ? ref.watch(serialPaneNotifierProvider(activeId))
+        : const SerialPaneState();
+    final paneN =
+        hasPane ? ref.read(serialPaneNotifierProvider(activeId).notifier) : null;
+    final config = pane.config;
+    final isConnected = pane.isConnected;
+
+    String? activeLabel;
+    if (hasPane) {
+      for (final t in ref.watch(terminalTabsNotifierProvider)) {
+        if (t.id == activeId) activeLabel = t.label;
+      }
+    }
 
     return Container(
       height: 48,
@@ -55,7 +70,6 @@ class ConnectionBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          // Left: scrollable controls
           Expanded(
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -71,7 +85,11 @@ class ConnectionBar extends ConsumerWidget {
                       color: c.foreground,
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 12),
+
+                  // Which SERIAL pane the bar acts on
+                  _ActivePaneChip(label: activeLabel),
+                  const SizedBox(width: 8),
 
                   const BoardProfilePicker(),
                   const SizedBox(width: 4),
@@ -105,10 +123,10 @@ class ConnectionBar extends ConsumerWidget {
                           ),
                         )
                         .toList(),
-                    onChanged: isConnected
+                    onChanged: (!hasPane || isConnected)
                         ? null
                         : (v) {
-                            if (v != null) cfgNotifier.setPort(v);
+                            if (v != null) paneN!.setPort(v);
                           },
                     width: 110,
                   ),
@@ -132,10 +150,10 @@ class ConnectionBar extends ConsumerWidget {
                           ),
                         )
                         .toList(),
-                    onChanged: isConnected
+                    onChanged: (!hasPane || isConnected)
                         ? null
                         : (v) {
-                            if (v != null) cfgNotifier.setBaudRate(v);
+                            if (v != null) paneN!.setBaudRate(v);
                           },
                     width: 100,
                   ),
@@ -144,8 +162,8 @@ class ConnectionBar extends ConsumerWidget {
 
                   _SerialSettingsButton(
                     config: config,
-                    cfgNotifier: cfgNotifier,
-                    enabled: !isConnected,
+                    paneNotifier: paneN,
+                    enabled: hasPane && !isConnected,
                   ),
 
                   const ToolbarDivider(),
@@ -156,9 +174,8 @@ class ConnectionBar extends ConsumerWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor:
                             isConnected ? c.destructive : c.primary,
-                        foregroundColor: isConnected
-                            ? Colors.white
-                            : c.primaryForeground,
+                        foregroundColor:
+                            isConnected ? Colors.white : c.primaryForeground,
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         textStyle: const TextStyle(
                           fontSize: 12,
@@ -170,17 +187,13 @@ class ConnectionBar extends ConsumerWidget {
                         size: 14,
                       ),
                       label: Text(isConnected ? 'Disconnect' : 'Connect'),
-                      onPressed: config.port.isEmpty
+                      onPressed: (!hasPane || config.port.isEmpty)
                           ? null
                           : () {
                               if (isConnected) {
-                                ref
-                                    .read(connectionNotifierProvider.notifier)
-                                    .disconnect();
+                                paneN!.disconnect();
                               } else {
-                                ref
-                                    .read(connectionNotifierProvider.notifier)
-                                    .connect(config);
+                                paneN!.connect();
                               }
                             },
                     ),
@@ -192,7 +205,6 @@ class ConnectionBar extends ConsumerWidget {
 
           const SizedBox(width: 8),
 
-          // Theme toggle
           Tooltip(
             message: isDark ? 'Switch to light mode' : 'Switch to dark mode',
             child: IconButton(
@@ -210,7 +222,45 @@ class ConnectionBar extends ConsumerWidget {
 
           const SizedBox(width: 8),
 
-          _StatusPill(config: config, connState: connState),
+          _StatusPill(
+            config: config,
+            isConnected: isConnected,
+            hasPane: hasPane,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActivePaneChip extends StatelessWidget {
+  const _ActivePaneChip({this.label});
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: c.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.adjust, size: 11, color: label != null ? c.primary : c.muted),
+          const SizedBox(width: 5),
+          Text(
+            label ?? 'No SERIAL pane',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1,
+              color: label != null ? c.foreground : c.muted,
+            ),
+          ),
         ],
       ),
     );
@@ -220,12 +270,12 @@ class ConnectionBar extends ConsumerWidget {
 class _SerialSettingsButton extends StatelessWidget {
   const _SerialSettingsButton({
     required this.config,
-    required this.cfgNotifier,
+    required this.paneNotifier,
     required this.enabled,
   });
 
   final SerialConfig config;
-  final SerialConfigNotifier cfgNotifier;
+  final SerialPaneNotifier? paneNotifier;
   final bool enabled;
 
   @override
@@ -236,8 +286,8 @@ class _SerialSettingsButton extends StatelessWidget {
       color: c.card,
       tooltip: 'Serial settings',
       onSelected: (setting) => switch (setting) {
-        _SetEncoding(:final value) => cfgNotifier.setEncoding(value),
-        _SetNewLine(:final value) => cfgNotifier.setNewLine(value),
+        _SetEncoding(:final value) => paneNotifier?.setEncoding(value),
+        _SetNewLine(:final value) => paneNotifier?.setNewLine(value),
       },
       itemBuilder: (_) => [
         PopupMenuItem<_SerialSetting>(
@@ -257,10 +307,7 @@ class _SerialSettingsButton extends StatelessWidget {
         PopupMenuItem<_SerialSetting>(
           enabled: false,
           height: 28,
-          child: Text(
-            'Encoding',
-            style: TextStyle(fontSize: 11, color: c.muted),
-          ),
+          child: Text('Encoding', style: TextStyle(fontSize: 11, color: c.muted)),
         ),
         for (final e in SerialEncoding.values)
           PopupMenuItem<_SerialSetting>(
@@ -282,10 +329,7 @@ class _SerialSettingsButton extends StatelessWidget {
         PopupMenuItem<_SerialSetting>(
           enabled: false,
           height: 28,
-          child: Text(
-            'New Line',
-            style: TextStyle(fontSize: 11, color: c.muted),
-          ),
+          child: Text('New Line', style: TextStyle(fontSize: 11, color: c.muted)),
         ),
         for (final n in NewLine.values)
           PopupMenuItem<_SerialSetting>(
@@ -318,10 +362,7 @@ class _SerialSettingsButton extends StatelessWidget {
             children: [
               Icon(Icons.tune, size: 14, color: c.foreground),
               const SizedBox(width: 6),
-              Text(
-                'Settings',
-                style: TextStyle(fontSize: 12, color: c.foreground),
-              ),
+              Text('Settings', style: TextStyle(fontSize: 12, color: c.foreground)),
             ],
           ),
         ),
@@ -363,26 +404,28 @@ class _ToolbarButton extends StatelessWidget {
 
 class _StatusPill extends StatelessWidget {
   final SerialConfig config;
-  final ConnState connState;
+  final bool isConnected;
+  final bool hasPane;
 
-  const _StatusPill({required this.config, required this.connState});
+  const _StatusPill({
+    required this.config,
+    required this.isConnected,
+    required this.hasPane,
+  });
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final isConnected = connState is Connected;
     final label = isConnected
         ? '${config.port}  |  ${config.baudRate}  |  ${config.encoding.label}  |  ${config.newLine.label}'
-        : 'Disconnected';
+        : (hasPane ? 'Disconnected' : 'No serial pane');
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isConnected
-              ? c.primary.withValues(alpha: 0.5)
-              : c.border,
+          color: isConnected ? c.primary.withValues(alpha: 0.5) : c.border,
         ),
       ),
       child: Row(
