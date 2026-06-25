@@ -1,0 +1,99 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:multi_split_view/multi_split_view.dart';
+import 'package:sanc_term/core/theme/sanc_term_theme.dart';
+import 'package:sanc_term/features/connection/widgets/connection_bar.dart';
+import 'package:sanc_term/features/terminal/widgets/log_panel.dart';
+import 'widgets/menu_sidebar.dart';
+
+class HomeScreen extends ConsumerStatefulWidget {
+  const HomeScreen({super.key, required this.child});
+  final Widget child;
+
+  @override
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  late final MultiSplitViewController _splitController;
+
+  @override
+  void initState() {
+    super.initState();
+    _splitController = MultiSplitViewController(
+      areas: [
+        Area(flex: 3, id: 'main'),
+        Area(flex: 1, id: 'log'),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    _splitController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Scaffold(
+      backgroundColor: c.background,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          const minWidth = 700.0;
+          const minHeight = 500.0;
+          final w = constraints.maxWidth < minWidth ? minWidth : constraints.maxWidth;
+          final h = constraints.maxHeight < minHeight ? minHeight : constraints.maxHeight;
+
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.vertical,
+              child: SizedBox(
+                width: w,
+                height: h,
+                child: Column(
+                  children: [
+                    const ConnectionBar(),
+                    Expanded(
+                      child: MultiSplitViewTheme(
+                        data: MultiSplitViewThemeData(
+                          dividerThickness: 4,
+                          dividerPainter: DividerPainters.background(
+                            color: c.border,
+                            highlightedColor: c.primary,
+                          ),
+                        ),
+                        child: MultiSplitView(
+                          axis: Axis.vertical,
+                          controller: _splitController,
+                          builder: (context, area) {
+                            if (area.id == 'main') {
+                              return Row(
+                                children: [
+                                  const MenuSidebar(),
+                                  Expanded(
+                                    child: SingleChildScrollView(
+                                      padding: const EdgeInsets.all(24),
+                                      child: widget.child,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }
+                            return const LogPanel();
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "commands": [
+    {
+      "text": "Win Debug Build",
+      "tooltip": "flutter run -d windows --debug",
+      "color": "#FFCC00",
+      "command": "workbench.action.terminal.sendSequence",
+      "arguments": [{ "text": "flutter run -d windows --debug\n" }]
+    },
+    {
+      "text": "Win Release Build",
+      "tooltip": "flutter run -d windows --release",
+      "color": "#00FF00",
+      "command": "workbench.action.terminal.sendSequence",
+      "arguments": [{ "text": "flutter run -d windows --release\n" }]
+    },
+    {
+      "text": "Win Debug Run",
+      "tooltip": "flutter run -d windows",
+      "color": "#00FFFF",
+      "command": "workbench.action.terminal.sendSequence",
+      "arguments": [{ "text": "flutter run -d windows\n" }]
+    }
+  ]
+}
