@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:multi_split_view/multi_split_view.dart';
 import 'package:xterm/xterm.dart';
 import 'package:sanc_term/core/theme/sanc_term_theme.dart';
+import 'package:sanc_term/core/theme/terminal_theme.dart';
 import 'package:sanc_term/features/connection/providers/serial_pane_provider.dart';
 import 'package:sanc_term/features/terminal/models/terminal_tab.dart';
 import 'package:sanc_term/features/terminal/providers/terminal_instances.dart';
@@ -298,6 +299,7 @@ class _TerminalPane extends ConsumerWidget {
               tab.terminal,
               controller: tab.controller,
               focusNode: tab.focusNode,
+              theme: buildTerminalTheme(c, Theme.of(context).brightness),
               backgroundOpacity: 0.0,
               padding: const EdgeInsets.all(8),
               onSecondaryTapDown: (d, o) => _handleRightClick(tab),
