@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/core/theme/theme_provider.dart';
@@ -21,17 +22,9 @@ const _baudRates = [
   1500000,
 ];
 
-sealed class _SerialSetting {}
+enum _AppMenuAction { comSettings, about }
 
-final class _SetEncoding extends _SerialSetting {
-  _SetEncoding(this.value);
-  final SerialEncoding value;
-}
-
-final class _SetNewLine extends _SerialSetting {
-  _SetNewLine(this.value);
-  final NewLine value;
-}
+const _appVersion = '0.1.0';
 
 class ConnectionBar extends ConsumerWidget {
   const ConnectionBar({super.key});
@@ -49,8 +42,9 @@ class ConnectionBar extends ConsumerWidget {
     final pane = hasPane
         ? ref.watch(serialPaneNotifierProvider(activeId))
         : const SerialPaneState();
-    final paneN =
-        hasPane ? ref.read(serialPaneNotifierProvider(activeId).notifier) : null;
+    final paneN = hasPane
+        ? ref.read(serialPaneNotifierProvider(activeId).notifier)
+        : null;
     final config = pane.config;
     final isConnected = pane.isConnected;
 
@@ -75,6 +69,13 @@ class ConnectionBar extends ConsumerWidget {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
+                  // App menu (COM settings / About) at the bar's start
+                  _AppMenuButton(
+                    activeId: activeId,
+                    settingsEnabled: hasPane && !isConnected,
+                  ),
+                  const SizedBox(width: 12),
+
                   Icon(Icons.terminal, size: 18, color: c.primary),
                   const SizedBox(width: 8),
                   Text(
@@ -91,20 +92,23 @@ class ConnectionBar extends ConsumerWidget {
                   _ActivePaneChip(label: activeLabel),
                   const SizedBox(width: 8),
 
+                  // Border profile button
                   const BoardProfilePicker(),
                   const SizedBox(width: 4),
 
+                  // scan button
                   _ToolbarButton(
                     icon: Icons.search,
                     label: 'Scan',
                     onPressed: isConnected
                         ? null
                         : () => ref
-                            .read(availablePortsNotifierProvider.notifier)
-                            .scan(),
+                              .read(availablePortsNotifierProvider.notifier)
+                              .scan(),
                   ),
                   const SizedBox(width: 8),
 
+                  // COM port list
                   buildDropdown<String>(
                     context,
                     value: config.port.isEmpty ? null : config.port,
@@ -160,22 +164,16 @@ class ConnectionBar extends ConsumerWidget {
 
                   const ToolbarDivider(),
 
-                  _SerialSettingsButton(
-                    config: config,
-                    paneNotifier: paneN,
-                    enabled: hasPane && !isConnected,
-                  ),
-
-                  const ToolbarDivider(),
-
                   SizedBox(
                     height: 32,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            isConnected ? c.destructive : c.primary,
-                        foregroundColor:
-                            isConnected ? Colors.white : c.primaryForeground,
+                        backgroundColor: isConnected
+                            ? c.destructive
+                            : c.primary,
+                        foregroundColor: isConnected
+                            ? Colors.white
+                            : c.primaryForeground,
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         textStyle: const TextStyle(
                           fontSize: 12,
@@ -205,6 +203,7 @@ class ConnectionBar extends ConsumerWidget {
 
           const SizedBox(width: 8),
 
+          // dark/light theme toggle button
           Tooltip(
             message: isDark ? 'Switch to light mode' : 'Switch to dark mode',
             child: IconButton(
@@ -214,14 +213,16 @@ class ConnectionBar extends ConsumerWidget {
                 color: c.muted,
               ),
               onPressed: () {
-                ref.read(themeModeProvider.notifier).state =
-                    isDark ? ThemeMode.light : ThemeMode.dark;
+                ref.read(themeModeProvider.notifier).state = isDark
+                    ? ThemeMode.light
+                    : ThemeMode.dark;
               },
             ),
           ),
 
           const SizedBox(width: 8),
 
+          // COM status bar
           _StatusPill(
             config: config,
             isConnected: isConnected,
@@ -250,7 +251,11 @@ class _ActivePaneChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.adjust, size: 11, color: label != null ? c.primary : c.muted),
+          Icon(
+            Icons.adjust,
+            size: 11,
+            color: label != null ? c.primary : c.muted,
+          ),
           const SizedBox(width: 5),
           Text(
             label ?? 'No SERIAL pane',
@@ -267,106 +272,325 @@ class _ActivePaneChip extends StatelessWidget {
   }
 }
 
-class _SerialSettingsButton extends StatelessWidget {
-  const _SerialSettingsButton({
-    required this.config,
-    required this.paneNotifier,
-    required this.enabled,
-  });
+/// App menu at the start of the connection bar. Opens COM settings / About in
+/// popup dialogs.
+class _AppMenuButton extends StatelessWidget {
+  const _AppMenuButton({required this.activeId, required this.settingsEnabled});
 
-  final SerialConfig config;
-  final SerialPaneNotifier? paneNotifier;
-  final bool enabled;
+  /// SERIAL pane the COM-settings dialog edits; null when there is no pane.
+  final String? activeId;
+
+  /// Whether COM settings can be edited (a pane exists and is disconnected).
+  final bool settingsEnabled;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return PopupMenuButton<_SerialSetting>(
-      enabled: enabled,
+    return PopupMenuButton<_AppMenuAction>(
       color: c.card,
-      tooltip: 'Serial settings',
-      onSelected: (setting) => switch (setting) {
-        _SetEncoding(:final value) => paneNotifier?.setEncoding(value),
-        _SetNewLine(:final value) => paneNotifier?.setNewLine(value),
+      tooltip: 'Menu',
+      position: PopupMenuPosition.under,
+      onSelected: (action) {
+        switch (action) {
+          case _AppMenuAction.comSettings:
+            final id = activeId;
+            if (id != null) {
+              showDialog<void>(
+                context: context,
+                builder: (_) => _ComSettingsDialog(tabId: id),
+              );
+            }
+          case _AppMenuAction.about:
+            showDialog<void>(
+              context: context,
+              builder: (_) => const _AboutDialog(),
+            );
+        }
       },
       itemBuilder: (_) => [
-        PopupMenuItem<_SerialSetting>(
-          enabled: false,
-          height: 32,
-          child: Text(
-            'SERIAL SETTINGS',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.5,
-              color: c.muted,
-            ),
-          ),
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem<_SerialSetting>(
-          enabled: false,
-          height: 28,
-          child: Text('Encoding', style: TextStyle(fontSize: 11, color: c.muted)),
-        ),
-        for (final e in SerialEncoding.values)
-          PopupMenuItem<_SerialSetting>(
-            value: _SetEncoding(e),
-            height: 36,
-            child: Row(
-              children: [
-                Icon(
-                  Icons.check,
-                  size: 14,
-                  color: config.encoding == e ? c.primary : Colors.transparent,
-                ),
-                const SizedBox(width: 8),
-                Text(e.label, style: TextStyle(fontSize: 12, color: c.foreground)),
-              ],
-            ),
-          ),
-        const PopupMenuDivider(),
-        PopupMenuItem<_SerialSetting>(
-          enabled: false,
-          height: 28,
-          child: Text('New Line', style: TextStyle(fontSize: 11, color: c.muted)),
-        ),
-        for (final n in NewLine.values)
-          PopupMenuItem<_SerialSetting>(
-            value: _SetNewLine(n),
-            height: 36,
-            child: Row(
-              children: [
-                Icon(
-                  Icons.check,
-                  size: 14,
-                  color: config.newLine == n ? c.primary : Colors.transparent,
-                ),
-                const SizedBox(width: 8),
-                Text(n.label, style: TextStyle(fontSize: 12, color: c.foreground)),
-              ],
-            ),
-          ),
-      ],
-      child: Opacity(
-        opacity: enabled ? 1.0 : 0.5,
-        child: Container(
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            border: Border.all(color: c.border),
-            borderRadius: BorderRadius.circular(4),
-          ),
+        PopupMenuItem<_AppMenuAction>(
+          value: _AppMenuAction.comSettings,
+          enabled: settingsEnabled,
+          height: 40,
           child: Row(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.tune, size: 14, color: c.foreground),
-              const SizedBox(width: 6),
-              Text('Settings', style: TextStyle(fontSize: 12, color: c.foreground)),
+              Icon(
+                Icons.tune,
+                size: 16,
+                color: settingsEnabled ? c.foreground : c.muted,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'COM settings',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: settingsEnabled ? c.foreground : c.muted,
+                ),
+              ),
             ],
           ),
         ),
+        PopupMenuItem<_AppMenuAction>(
+          value: _AppMenuAction.about,
+          height: 40,
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, size: 16, color: c.foreground),
+              const SizedBox(width: 10),
+              Text(
+                'About',
+                style: TextStyle(fontSize: 13, color: c.foreground),
+              ),
+            ],
+          ),
+        ),
+      ],
+      child: Container(
+        height: 32,
+        width: 36,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          border: Border.all(color: c.border),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Icon(Icons.menu, size: 16, color: c.foreground),
       ),
+    );
+  }
+}
+
+/// Popup dialog for serial encoding / new-line, scoped to one SERIAL pane.
+/// Watches the pane provider so selections reflect live without reopening.
+class _ComSettingsDialog extends ConsumerWidget {
+  const _ComSettingsDialog({required this.tabId});
+
+  final String tabId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+    final state = ref.watch(serialPaneNotifierProvider(tabId));
+    final notifier = ref.read(serialPaneNotifierProvider(tabId).notifier);
+    final config = state.config;
+    final locked = state.isConnected;
+
+    return AlertDialog(
+      backgroundColor: c.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: c.border),
+      ),
+      title: Row(
+        children: [
+          Icon(Icons.tune, size: 18, color: c.primary),
+          const SizedBox(width: 8),
+          Text(
+            'COM Settings',
+            style: TextStyle(fontSize: 15, color: c.foreground),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (locked)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Disconnect to change settings.',
+                style: TextStyle(fontSize: 11, color: c.warning),
+              ),
+            ),
+          _DialogSectionLabel('Encoding'),
+          for (final e in SerialEncoding.values)
+            _DialogCheckRow(
+              label: e.label,
+              selected: config.encoding == e,
+              enabled: !locked,
+              onTap: () => notifier.setEncoding(e),
+            ),
+          const SizedBox(height: 8),
+          _DialogSectionLabel('New Line'),
+          for (final n in NewLine.values)
+            _DialogCheckRow(
+              label: n.label,
+              selected: config.newLine == n,
+              enabled: !locked,
+              onTap: () => notifier.setNewLine(n),
+            ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Close', style: TextStyle(color: c.primary)),
+        ),
+      ],
+    );
+  }
+}
+
+class _DialogSectionLabel extends StatelessWidget {
+  const _DialogSectionLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.5,
+          color: c.muted,
+        ),
+      ),
+    );
+  }
+}
+
+class _DialogCheckRow extends StatelessWidget {
+  const _DialogCheckRow({
+    required this.label,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        child: Row(
+          children: [
+            Icon(
+              Icons.check,
+              size: 16,
+              color: selected ? c.primary : Colors.transparent,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                color: enabled ? c.foreground : c.muted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Popup dialog with app name, version and a short description.
+class _AboutDialog extends StatelessWidget {
+  const _AboutDialog();
+
+  static const _repoUrl = 'https://github.com/louiey-dev/sanc_term';
+  static const _email = 'louiey.dev@gmail.com';
+
+  /// Copies the repo URL to the clipboard and confirms via a snackbar.
+  Future<void> _copyRepo(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await Clipboard.setData(const ClipboardData(text: _repoUrl));
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Link copied to clipboard')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return AlertDialog(
+      backgroundColor: c.card,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: c.border),
+      ),
+      title: Row(
+        children: [
+          Icon(Icons.terminal, size: 20, color: c.primary),
+          const SizedBox(width: 8),
+          Text(
+            'sanc_term',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: c.foreground,
+            ),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Version $_appVersion',
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'Consolas',
+              color: c.muted,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Multi-platform serial / UDP terminal',
+            style: TextStyle(fontSize: 13, color: c.foreground),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: SelectableText(
+                  _repoUrl,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: 'Consolas',
+                    color: c.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              IconButton(
+                icon: Icon(Icons.copy, size: 14, color: c.muted),
+                tooltip: 'Copy link',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _copyRepo(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SelectableText(
+            _email,
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'Consolas',
+              color: c.primary,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text('Close', style: TextStyle(color: c.primary)),
+        ),
+      ],
     );
   }
 }
