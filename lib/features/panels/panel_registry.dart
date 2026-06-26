@@ -1,7 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:sanc_term/features/panels/common/cm_cmd_history.dart';
+import 'package:sanc_term/features/panels/common/cm_general_settings.dart';
+import 'package:sanc_term/features/panels/common/cm_time_setting.dart';
 import 'package:sanc_term/features/panels/common/stub_panel.dart';
+import 'package:sanc_term/features/panels/diagnostics/dn_cpu.dart';
+import 'package:sanc_term/features/panels/diagnostics/dn_display.dart';
+import 'package:sanc_term/features/panels/diagnostics/dn_gpio.dart';
+import 'package:sanc_term/features/panels/diagnostics/dn_memory.dart';
+import 'package:sanc_term/features/panels/diagnostics/dn_peripheral.dart';
+import 'package:sanc_term/features/panels/diagnostics/dn_power.dart';
+import 'package:sanc_term/features/panels/diagnostics/dn_rtc_sensor.dart';
+import 'package:sanc_term/features/panels/diagnostics/dn_storage.dart';
+import 'package:sanc_term/features/panels/diagnostics/dn_wifi_ble.dart';
+import 'package:sanc_term/features/panels/esp/esp_at.dart';
+import 'package:sanc_term/features/panels/esp/esp_ota.dart';
 import 'package:sanc_term/features/panels/models/panel_entry.dart';
+import 'package:sanc_term/features/panels/nvidia/nv_audio.dart';
+import 'package:sanc_term/features/panels/nvidia/nv_ethernet.dart';
+import 'package:sanc_term/features/panels/nvidia/nv_gpio.dart';
+import 'package:sanc_term/features/panels/nvidia/nv_hdmi.dart';
+import 'package:sanc_term/features/panels/nvidia/nv_leds.dart';
+import 'package:sanc_term/features/panels/nvidia/nv_nvme.dart';
 import 'package:sanc_term/features/panels/nvidia/nv_settings.dart';
+import 'package:sanc_term/features/panels/nvidia/nv_uart.dart';
+import 'package:sanc_term/features/panels/rockchip/rc_display.dart';
+import 'package:sanc_term/features/panels/rockchip/rc_gpio.dart';
+import 'package:sanc_term/features/panels/rockchip/rc_i2c.dart';
+import 'package:sanc_term/features/panels/rockchip/rc_mpp.dart';
+import 'package:sanc_term/features/panels/rockchip/rc_network.dart';
+import 'package:sanc_term/features/panels/rockchip/rc_sensors.dart';
+import 'package:sanc_term/features/panels/rockchip/rc_settings.dart';
+import 'package:sanc_term/features/panels/rockchip/rc_storage.dart';
+import 'package:sanc_term/features/panels/rockchip/rc_uart.dart';
+import 'package:sanc_term/features/panels/rockchip/rc_usb.dart';
+import 'package:sanc_term/features/panels/voice/odv_default.dart';
 
 const panelGroups = [
   PanelGroup(
@@ -238,6 +270,18 @@ const panelGroups = [
       ),
     ],
   ),
+  PanelGroup(
+    title: 'ON-DEVICE VOICE',
+    icon: Icons.record_voice_over,
+    items: [
+      PanelEntry(
+        id: 'odv_default',
+        label: 'On-Device Voice',
+        description: 'Voice demo settings and controls',
+        icon: Icons.mic,
+      ),
+    ],
+  ),
 ];
 
 // Derived from panelGroups — every panel defaults to a StubPanel. Add a real
@@ -251,5 +295,43 @@ final Map<String, Widget Function()> panelRegistry = {
 
 /// Ids that have a real implementation. These override the stub above.
 final Map<String, Widget Function()> _realPanels = {
+  // Common
+  'cm_cmd_history': () => const CmCmdHistoryPanel(),
+  'cm_general_settings': () => const CmGeneralSettingsPanel(),
+  'cm_time_setting': () => const CmTimeSettingPanel(),
+  // Diagnostics
+  'dn_power': () => const DnPowerPanel(),
+  'dn_cpu': () => const DnCpuPanel(),
+  'dn_memory': () => const DnMemoryPanel(),
+  'dn_storage': () => const DnStoragePanel(),
+  'dn_peripheral': () => const DnPeripheralPanel(),
+  'dn_display': () => const DnDisplayPanel(),
+  'dn_wifi_ble': () => const DnWifiBlePanel(),
+  'dn_gpio': () => const DnGpioPanel(),
+  'dn_rtc_sensor': () => const DnRtcSensorPanel(),
+  // NVIDIA
   'nv_settings': () => const NvSettingsPanel(),
+  'nv_gpio': () => const NvGpioPanel(),
+  'nv_hdmi': () => const NvHdmiPanel(),
+  'nv_ethernet': () => const NvEthernetPanel(),
+  'nv_uart': () => const NvUartPanel(),
+  'nv_leds': () => const NvLedPanel(),
+  'nv_nvme': () => const NvNvmePanel(),
+  'nv_audio': () => const NvAudioPanel(),
+  // Rockchip
+  'rc_settings': () => const RcSettingsPanel(),
+  'rc_gpio': () => const RcGpioPanel(),
+  'rc_uart': () => const RcUartPanel(),
+  'rc_i2c': () => const RcI2cPanel(),
+  'rc_sensors': () => const RcSensorsPanel(),
+  'rc_display': () => const RcDisplayPanel(),
+  'rc_mpp': () => const RcMppPanel(),
+  'rc_network': () => const RcNetworkPanel(),
+  'rc_storage': () => const RcStoragePanel(),
+  'rc_usb': () => const RcUsbPanel(),
+  // Espressif
+  'esp_at': () => const EspAtPanel(),
+  'esp_ota': () => const EspOtaPanel(),
+  // On-device voice
+  'odv_default': () => const OnDeviceVoicePanel(),
 };

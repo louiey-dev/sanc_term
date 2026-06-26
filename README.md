@@ -45,6 +45,10 @@ That widget.child is filled by go_router, so its content changes with what you c
 So the flow is:
   sidebar item (menu_sidebar.dart) → context.go(`/home/panel/<id>`) → router (app_router.dart) → panel_registry.dart → widget rendered in the middle-right.
 
+## Screens
+
+![sanc_term_dark](sanc_term_dark.png)  ![sanc_term_light](sanc_term_light.png)
+
 ## Features
 
 - 🚀 Cross platform: mobile, desktop, browser
@@ -75,7 +79,8 @@ So the flow is:
   - short key added at terminal to move between windows (`ALT + 1/2/3...`)
   - modify settings menu to handle more menu options
     - add about pop up window
-  - add 'Tegra Stats' menu and plot
+  - added most of panels with default menu items but not tested&verified
+  - test&verified 'Tegra Stats' menu and plot
 
 ## Info
 

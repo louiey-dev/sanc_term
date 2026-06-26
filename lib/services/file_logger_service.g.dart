@@ -7,7 +7,7 @@ part of 'file_logger_service.dart';
 // **************************************************************************
 
 String _$fileLoggerNotifierHash() =>
-    r'c39f654474dbca720f676ff2f041a503f1c50084';
+    r'e57009ddfd9ac1232686c05d8ec909a5d058a8df';
 
 /// See also [FileLoggerNotifier].
 @ProviderFor(FileLoggerNotifier)

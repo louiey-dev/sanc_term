@@ -24,6 +24,9 @@ class SerialBoardConsole implements BoardConsole {
     Duration timeout = const Duration(seconds: 4),
   }) =>
       notifier.runCommand(command, timeout: timeout);
+
+  @override
+  void send(String data) => notifier.send(data);
 }
 
 /// Picks the console to run board commands on, by priority:

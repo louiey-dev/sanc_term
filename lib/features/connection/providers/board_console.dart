@@ -21,6 +21,11 @@ abstract class BoardConsole {
     String command, {
     Duration timeout = const Duration(seconds: 4),
   });
+
+  /// Writes raw [data] to the console with no capture (fire-and-forget); output
+  /// flows to the terminal pane as usual. Used by panels that just run a command
+  /// and let the user watch the terminal.
+  void send(String data);
 }
 
 /// Runs one command at a time on an interactive console and captures the
@@ -141,6 +146,9 @@ class PtyConsole implements BoardConsole {
         command,
         timeout: timeout,
       );
+
+  @override
+  void send(String data) => _pty.write(const Utf8Encoder().convert(data));
 }
 
 /// Holds the consoles backed by live PTY panes so other features (panels) can

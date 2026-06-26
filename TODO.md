@@ -98,4 +98,19 @@ Details and features will evolve during implementation, but the design doc is th
 
 ## TODOs
 
-- [ ] set up one sample panel for reference
+- [x] set up one sample panel for reference -> nv_settings.dart
+- [ ] test&verify
+  - [x] nVidia
+    - [x] ethernet
+    - [x] gpio
+    - [x] hdmi
+    - [x] leds
+    - [x] nvme
+    - [x] uart
+    - [-] audio - HW is not ready yet with custom board
+  - [x] COMMON
+    - [x] cmd history
+    - [x] general settings
+    - [x] time settings
+  - [x] ON-DEVICE-VOICE
+    - [x] tts app

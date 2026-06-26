@@ -206,37 +206,6 @@ class MyPanel extends StatelessWidget {
   }
 }
 
-class MyPanelHeader extends StatelessWidget {
-  final String panelTitle;
-  final String panelSubtitle;
-  final List<Widget>? panelActions;
-
-  const MyPanelHeader({
-    super.key,
-    required this.panelTitle,
-    required this.panelSubtitle,
-    this.panelActions,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        PanelHeader(
-          icon: Icons.settings,
-          iconColor: c.primary,
-          title: panelTitle,
-          subtitle: panelSubtitle,
-          actions: [...?panelActions],
-        ),
-        const SizedBox(height: 24),
-      ],
-    );
-  }
-}
-
 /// A titled card section inside a [MyPanel]: an optional icon + title +
 /// subtitle, an optional trailing action (e.g. a button), and the content.
 /// Use one per logical block; a panel is a [MyPanel] whose children are these.

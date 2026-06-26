@@ -12,8 +12,6 @@ import 'package:sanc_term/features/panels/nvidia/tegra_stats.dart';
 import 'package:sanc_term/shared/widgets/common.dart';
 import 'package:sanc_term/shared/widgets/panel.dart';
 
-/// Sample NVIDIA settings panel.
-///
 /// Layout the other NVIDIA panels can copy:
 ///  - header with [NvCommonActions] shared across NVIDIA panels (top-right);
 ///  - a main "overview" block describing what the panel does;
@@ -127,8 +125,7 @@ class _InfoBlockState extends ConsumerState<_InfoBlock> {
 
   // --- output parsing ---
 
-  String _clean(String s) =>
-      s.replaceAll(RegExp(r'[^\x20-\x7E]'), '').trim();
+  String _clean(String s) => s.replaceAll(RegExp(r'[^\x20-\x7E]'), '').trim();
 
   String _firstToken(String s) {
     final parts = _clean(s).split(RegExp(r'\s+'));
@@ -376,9 +373,7 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
     return MyPanelBody(
       icon: Icons.monitor_heart_outlined,
       title: 'Tegra Stats',
-      subtitle: _running
-          ? 'Auto · 2s'
-          : (_loading ? 'Reading…' : 'Stopped'),
+      subtitle: _running ? 'Auto · 2s' : (_loading ? 'Reading…' : 'Stopped'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -429,4 +424,3 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
     );
   }
 }
-

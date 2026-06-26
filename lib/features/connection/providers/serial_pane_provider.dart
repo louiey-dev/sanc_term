@@ -53,6 +53,15 @@ class SerialPaneNotifier extends _$SerialPaneNotifier {
 
   bool get isConnected => state.isConnected;
 
+  /// Fire-and-forget write to the open port (no capture).
+  void send(String data) {
+    final port = _port;
+    if (port == null) return;
+    try {
+      port.write(Uint8List.fromList(utf8.encode(data)));
+    } catch (_) {}
+  }
+
   /// Runs [command] over this serial connection and returns its output.
   /// Errors if the port is not open.
   Future<String> runCommand(
