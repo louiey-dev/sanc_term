@@ -44,7 +44,7 @@ class _OverviewBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return _SectionCard(
+    return MyPanelBody(
       icon: Icons.info_outline,
       title: 'About this panel',
       child: Text(
@@ -185,7 +185,7 @@ class _InfoBlockState extends ConsumerState<_InfoBlock> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return _SectionCard(
+    return MyPanelBody(
       icon: Icons.memory,
       title: 'Board Info',
       subtitle: 'Identity and lifecycle actions',
@@ -373,7 +373,7 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return _SectionCard(
+    return MyPanelBody(
       icon: Icons.monitor_heart_outlined,
       title: 'Tegra Stats',
       subtitle: _running
@@ -430,59 +430,3 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Shared section scaffold: titled card with an optional trailing action.
-
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.icon,
-    required this.title,
-    this.subtitle,
-    this.trailing,
-    required this.child,
-  });
-
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final Widget? trailing;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return PanelBody(
-      children: [
-        Row(
-          children: [
-            Icon(icon, size: 16, color: c.primary),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: c.foreground,
-                    ),
-                  ),
-                  if (subtitle != null)
-                    Text(
-                      subtitle!,
-                      style: TextStyle(fontSize: 11, color: c.muted),
-                    ),
-                ],
-              ),
-            ),
-            if (trailing != null) trailing!,
-          ],
-        ),
-        const SizedBox(height: 14),
-        child,
-      ],
-    );
-  }
-}

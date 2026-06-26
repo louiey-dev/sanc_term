@@ -237,50 +237,61 @@ class MyPanelHeader extends StatelessWidget {
   }
 }
 
+/// A titled card section inside a [MyPanel]: an optional icon + title +
+/// subtitle, an optional trailing action (e.g. a button), and the content.
+/// Use one per logical block; a panel is a [MyPanel] whose children are these.
 class MyPanelBody extends StatelessWidget {
-  final List<Widget> children;
-  final String bodyTitle;
-  final String bodySubtitle;
+  final IconData? icon;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final Widget child;
 
   const MyPanelBody({
     super.key,
-    this.children = const [],
-    this.bodyTitle = '',
-    this.bodySubtitle = '',
+    required this.title,
+    this.icon,
+    this.subtitle,
+    this.trailing,
+    required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
+    final c = context.colors;
     return PanelBody(
       children: [
-        if (bodyTitle.isNotEmpty)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                bodyTitle,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 16, color: c.primary),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: c.foreground,
+                    ),
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle!,
+                      style: TextStyle(fontSize: 11, color: c.muted),
+                    ),
+                ],
               ),
-              const SizedBox(height: 4),
-            ],
-          ),
-        if (bodySubtitle.isNotEmpty)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(bodySubtitle, style: const TextStyle(fontSize: 12)),
-              const SizedBox(height: 10),
-            ],
-          ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: children
-              .expand((w) => [w, const SizedBox(height: 8)])
-              .toList()
-            ..removeLast(),
+            ),
+            if (trailing != null) trailing!,
+          ],
         ),
+        const SizedBox(height: 14),
+        child,
       ],
     );
   }
