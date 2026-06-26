@@ -297,6 +297,7 @@ class _TerminalPane extends ConsumerWidget {
             child: TerminalView(
               tab.terminal,
               controller: tab.controller,
+              focusNode: tab.focusNode,
               backgroundOpacity: 0.0,
               padding: const EdgeInsets.all(8),
               onSecondaryTapDown: (d, o) => _handleRightClick(tab),

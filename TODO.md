@@ -95,3 +95,7 @@ Details and features will evolve during implementation, but the design doc is th
 - Can you access `D:\GIT\Flutter\flutter_terminal`?
   → Yes — Claude Code can read any local path. Reference it freely for
   implementation patterns; it is the predecessor to this app.
+
+## TODOs
+
+- [ ] set up one sample panel for reference

@@ -4,12 +4,19 @@ terminal app which supports xtem/uart/udp and so on.
 
 ## Features
 
+- 🚀 Cross platform: mobile, desktop, browser
 - terminal support
 - uart/udp support
 - log to file
+  - in Windows, save to Desktop by default
+  - other OS, save to DOC directory
 - riverpod for state management, go_router for routing
 - hive/window manager support
-- xterm is inside of local
+- used xterm package inside of local due to bug patch
+- multiple window support
+  - serial, pty support
+  - move between windows via 'ALT + 1/2/3/4...'
+  - log file logging all of open windows (only one log file available)
 
 ## History
 
