@@ -114,3 +114,28 @@ Details and features will evolve during implementation, but the design doc is th
     - [x] time settings
   - [x] ON-DEVICE-VOICE
     - [x] tts app
+  - [ ] RockChip
+    - [ ] Settings
+    - [ ] GPIO
+    - [ ] UART
+    - [ ] I2C
+    - [ ] Sensors
+    - [ ] Display
+    - [ ] MPP
+    - [ ] Network
+    - [ ] Storage
+    - [ ] USB
+  - [ ] DIAGNOSTICS
+    - [ ] Power Monitor
+    - [ ] CPU
+    - [ ] Memory
+    - [ ] Storage
+    - [ ] Peripheral
+    - [ ] Display
+    - [ ] Wifi/BLE
+    - [ ] GPIO
+    - [ ] RTC/Sensor
+  - [ ] ESPRESSIF
+    - [ ] AT Command
+    - [ ] ESP OTA Update
+  - [ ] LET MODEM
