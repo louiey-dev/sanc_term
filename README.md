@@ -75,6 +75,7 @@ So the flow is:
   - short key added at terminal to move between windows (`ALT + 1/2/3...`)
   - modify settings menu to handle more menu options
     - add about pop up window
+  - add 'Tegra Stats' menu and plot
 
 ## Info
 

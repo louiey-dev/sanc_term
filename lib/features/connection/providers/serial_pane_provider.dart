@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_libserialport/flutter_libserialport.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:xterm/xterm.dart';
+import 'package:sanc_term/features/connection/providers/board_console.dart';
 import 'package:sanc_term/features/terminal/models/terminal_tab.dart';
 import 'package:sanc_term/features/terminal/providers/terminal_instances.dart';
 import 'package:sanc_term/services/file_logger_service.dart';
@@ -48,6 +49,25 @@ class SerialPaneNotifier extends _$SerialPaneNotifier {
   SerialPort? _port;
   SerialPortReader? _reader;
   StreamSubscription<Uint8List>? _sub;
+  final ConsoleCommandSession _cmd = ConsoleCommandSession();
+
+  bool get isConnected => state.isConnected;
+
+  /// Runs [command] over this serial connection and returns its output.
+  /// Errors if the port is not open.
+  Future<String> runCommand(
+    String command, {
+    Duration timeout = const Duration(seconds: 4),
+  }) {
+    if (_port == null) {
+      return Future.error(StateError('serial port is not connected'));
+    }
+    return _cmd.run(
+      (data) => _port?.write(Uint8List.fromList(utf8.encode(data))),
+      command,
+      timeout: timeout,
+    );
+  }
 
   @override
   SerialPaneState build(String tabId) {
@@ -90,6 +110,7 @@ class SerialPaneNotifier extends _$SerialPaneNotifier {
         (data) {
           final text = _decode(data, cfg.encoding);
           terminal?.write(text);
+          _cmd.feed(text);
           ref.read(fileLoggerNotifierProvider.notifier).log(text);
         },
         onError: (Object e) {

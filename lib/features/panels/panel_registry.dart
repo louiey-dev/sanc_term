@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sanc_term/features/panels/common/stub_panel.dart';
 import 'package:sanc_term/features/panels/models/panel_entry.dart';
+import 'package:sanc_term/features/panels/nvidia/nv_settings.dart';
 
 const panelGroups = [
   PanelGroup(
@@ -239,10 +240,16 @@ const panelGroups = [
   ),
 ];
 
-// Derived from panelGroups — add one entry here to register a new panel.
-// Replace StubPanel with the real widget when implemented.
+// Derived from panelGroups — every panel defaults to a StubPanel. Add a real
+// builder to [_realPanels] below to override the stub for that id.
 final Map<String, Widget Function()> panelRegistry = {
   for (final group in panelGroups)
     for (final entry in group.items)
       entry.id: () => StubPanel(entry: entry),
+  ..._realPanels,
+};
+
+/// Ids that have a real implementation. These override the stub above.
+final Map<String, Widget Function()> _realPanels = {
+  'nv_settings': () => const NvSettingsPanel(),
 };

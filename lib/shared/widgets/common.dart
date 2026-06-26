@@ -111,7 +111,7 @@ class InfoTile extends StatelessWidget {
           text: TextSpan(
             text: value,
             style: TextStyle(
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: FontWeight.w700,
               fontFamily: 'Consolas',
               color: valueColor ?? c.foreground,
@@ -140,7 +140,12 @@ class ProgressBar extends StatelessWidget {
   final Color? color;
   final double height;
 
-  const ProgressBar({super.key, required this.value, this.color, this.height = 6});
+  const ProgressBar({
+    super.key,
+    required this.value,
+    this.color,
+    this.height = 6,
+  });
 
   @override
   Widget build(BuildContext context) {

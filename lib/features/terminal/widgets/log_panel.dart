@@ -9,6 +9,7 @@ import 'package:multi_split_view/multi_split_view.dart';
 import 'package:xterm/xterm.dart';
 import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/core/theme/terminal_theme.dart';
+import 'package:sanc_term/features/connection/providers/board_console.dart';
 import 'package:sanc_term/features/connection/providers/serial_pane_provider.dart';
 import 'package:sanc_term/features/terminal/models/terminal_tab.dart';
 import 'package:sanc_term/features/terminal/providers/terminal_instances.dart';
@@ -24,6 +25,7 @@ class LogPanel extends ConsumerStatefulWidget {
 class _LogPanelState extends ConsumerState<LogPanel> {
   late final MultiSplitViewController _splitController;
   final Map<String, Pty> _ptys = {};
+  final Map<String, PtyConsole> _consoles = {};
   final Set<String> _ptyStarted = {};
   bool _isPaused = false;
 
@@ -40,6 +42,10 @@ class _LogPanelState extends ConsumerState<LogPanel> {
   @override
   void dispose() {
     _splitController.dispose();
+    final registry = ref.read(boardConsoleRegistryProvider);
+    for (final id in _consoles.keys) {
+      registry.unregister(id);
+    }
     for (final pty in _ptys.values) {
       pty.kill();
     }
@@ -70,9 +76,13 @@ class _LogPanelState extends ConsumerState<LogPanel> {
     if (prev != null) {
       final removed = prev.map((t) => t.id).toSet()
         ..removeAll(next.map((t) => t.id));
+      final registry = ref.read(boardConsoleRegistryProvider);
       for (final id in removed) {
         _ptys[id]?.kill();
         _ptys.remove(id);
+        _consoles[id]?.markClosed();
+        _consoles.remove(id);
+        registry.unregister(id);
         _ptyStarted.remove(id);
       }
     }
@@ -91,19 +101,24 @@ class _LogPanelState extends ConsumerState<LogPanel> {
         environment: {...Platform.environment, 'TERM': 'xterm-256color'},
       );
       _ptys[tab.id] = pty;
+      final console = PtyConsole(id: tab.id, pty: pty);
+      _consoles[tab.id] = console;
+      ref.read(boardConsoleRegistryProvider).register(console);
 
       pty.output
           .cast<List<int>>()
           .transform(const Utf8Decoder(allowMalformed: true))
           .listen((data) {
+            console.feed(data);
             if (!_isPaused) {
               tab.terminal.write(data);
               ref.read(fileLoggerNotifierProvider.notifier).log(data);
             }
           });
-      pty.exitCode.then(
-        (code) => tab.terminal.write('process exited with code $code\r\n'),
-      );
+      pty.exitCode.then((code) {
+        console.markClosed();
+        tab.terminal.write('process exited with code $code\r\n');
+      });
       tab.terminal.onOutput = (data) {
         try {
           pty.write(const Utf8Encoder().convert(data));
