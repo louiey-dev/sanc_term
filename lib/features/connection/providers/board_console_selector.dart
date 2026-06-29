@@ -35,28 +35,50 @@ class SerialBoardConsole implements BoardConsole {
 ///   3. otherwise a connected PTY pane (where the user may have SSH'd in);
 ///   4. otherwise null — the caller should warn that nothing is connected.
 BoardConsole? pickBoardConsole(WidgetRef ref) {
-  // 1. Try the active/selected SERIAL pane first
-  final activeId = ref.read(effectiveActiveSerialTabIdProvider);
+  final activeId = ref.read(activeTabIdProvider);
+
+  // 1. Try the active/selected tab first (whether Serial or PTY)
   if (activeId != null) {
-    final notifier = ref.read(serialPaneNotifierProvider(activeId).notifier);
-    if (notifier.isConnected) {
-      return SerialBoardConsole(id: activeId, notifier: notifier);
+    final tabs = ref.read(terminalTabsNotifierProvider);
+    TerminalTab? activeTab;
+    for (final t in tabs) {
+      if (t.id == activeId) {
+        activeTab = t;
+        break;
+      }
+    }
+    if (activeTab != null) {
+      if (activeTab.type == TerminalTabType.serial) {
+        final notifier = ref.read(serialPaneNotifierProvider(activeId).notifier);
+        if (notifier.isConnected) {
+          return SerialBoardConsole(id: activeId, notifier: notifier);
+        }
+      } else if (activeTab.type == TerminalTabType.pty) {
+        for (final console in ref.read(boardConsoleRegistryProvider).all) {
+          if (console.id == activeId && console.isConnected) {
+            return console;
+          }
+        }
+      }
     }
   }
 
-  // 2. Fallback to the first connected SERIAL pane
+  // 2. Fallback to any connected SERIAL pane
   for (final tab in ref.read(terminalTabsNotifierProvider)) {
     if (tab.type != TerminalTabType.serial) continue;
-    if (tab.id == activeId) continue; // Already checked above
+    if (tab.id == activeId) continue; // Already checked
     final notifier = ref.read(serialPaneNotifierProvider(tab.id).notifier);
     if (notifier.isConnected) {
       return SerialBoardConsole(id: tab.id, notifier: notifier);
     }
   }
 
-  // 3. Fallback to a connected PTY pane
+  // 3. Fallback to any connected PTY pane
   for (final console in ref.read(boardConsoleRegistryProvider).all) {
-    if (console.kind == ConsoleKind.pty && console.isConnected) return console;
+    if (console.id == activeId) continue; // Already checked
+    if (console.kind == ConsoleKind.pty && console.isConnected) {
+      return console;
+    }
   }
   return null;
 }

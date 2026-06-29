@@ -52,6 +52,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (index >= tabs.length) return false;
 
     final tab = tabs[index];
+    ref.read(activeTabIdProvider.notifier).setActive(tab.id);
     if (tab.type == TerminalTabType.serial) {
       ref.read(serialActiveTabIdProvider.notifier).state = tab.id;
     }

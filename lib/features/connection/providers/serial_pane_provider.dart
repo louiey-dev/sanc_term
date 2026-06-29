@@ -192,6 +192,8 @@ String? effectiveActiveSerialTabId(Ref ref) {
       .where((t) => t.type == TerminalTabType.serial)
       .toList();
   if (serials.isEmpty) return null;
+  final activeId = ref.watch(activeTabIdProvider);
+  if (activeId != null && serials.any((t) => t.id == activeId)) return activeId;
   final selected = ref.watch(serialActiveTabIdProvider);
   if (selected != null && serials.any((t) => t.id == selected)) return selected;
   return serials.first.id;

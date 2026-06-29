@@ -43,3 +43,12 @@ class TerminalTabsNotifier extends _$TerminalTabsNotifier {
     state = state.where((t) => t.id != id).toList();
   }
 }
+
+@Riverpod(keepAlive: true)
+class ActiveTabId extends _$ActiveTabId {
+  @override
+  String? build() => null;
+
+  void setActive(String? id) => state = id;
+}
+

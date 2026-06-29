@@ -147,7 +147,7 @@ class _LogPanelState extends ConsumerState<LogPanel> {
   Widget build(BuildContext context) {
     final c = context.colors;
     final tabs = ref.watch(terminalTabsNotifierProvider);
-    final activeSerialId = ref.watch(effectiveActiveSerialTabIdProvider);
+    final activeTabId = ref.watch(activeTabIdProvider) ?? tabs.firstOrNull?.id;
     ref.listen<List<TerminalTab>>(terminalTabsNotifierProvider, _onTabsChanged);
 
     return Container(
@@ -180,12 +180,14 @@ class _LogPanelState extends ConsumerState<LogPanel> {
                   return _TerminalPane(
                     tab: tab,
                     canClose: tabs.length > 1,
-                    isActive: isSerial && tab.id == activeSerialId,
-                    onActivate: isSerial
-                        ? () => ref
-                            .read(serialActiveTabIdProvider.notifier)
-                            .state = tab.id
-                        : null,
+                    isActive: tab.id == activeTabId,
+                    onActivate: () {
+                      ref.read(activeTabIdProvider.notifier).setActive(tab.id);
+                      if (isSerial) {
+                        ref.read(serialActiveTabIdProvider.notifier).state = tab.id;
+                      }
+                      tab.focusNode.requestFocus();
+                    },
                     onClose: () => ref
                         .read(terminalTabsNotifierProvider.notifier)
                         .removeTab(tab.id),

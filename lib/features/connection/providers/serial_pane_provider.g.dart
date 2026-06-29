@@ -7,7 +7,7 @@ part of 'serial_pane_provider.dart';
 // **************************************************************************
 
 String _$effectiveActiveSerialTabIdHash() =>
-    r'6d031cc1f606de61a2d633044ecd837c1d3d2e06';
+    r'c3a9f418194ba85193d1cfe4b0b69922ee96f582';
 
 /// The SERIAL tab the connection bar currently acts on: the explicit selection
 /// if it still exists, otherwise the first SERIAL pane. Null if none.
