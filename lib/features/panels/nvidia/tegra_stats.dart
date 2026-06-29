@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sanc_term/core/theme/sanc_term_theme.dart';
+import 'package:sanc_term/core/utils/formatters.dart';
 import 'package:sanc_term/shared/widgets/common.dart';
 
 // ---------------------------------------------------------------------------
@@ -89,22 +90,23 @@ TegraSample tegraSample(TegraStatsData s) => TegraSample(
 // ---------------------------------------------------------------------------
 
 TegraStatsData? parseTegraStats(String line) {
-  if (!line.contains('RAM ') || !line.contains('CPU [')) return null;
+  final cleanLine = stripAnsi(line);
+  if (!cleanLine.contains('RAM') || !cleanLine.contains('CPU')) return null;
 
-  final ramM = RegExp(r'RAM (\d+)/(\d+)MB').firstMatch(line);
+  final ramM = RegExp(r'RAM\s+(\d+)/(\d+)MB').firstMatch(cleanLine);
   if (ramM == null) return null;
   final ramUsed = int.tryParse(ramM.group(1)!) ?? 0;
   final ramTotal = int.tryParse(ramM.group(2)!) ?? 0;
 
   int swapUsed = 0, swapTotal = 0;
-  final swapM = RegExp(r'SWAP (\d+)/(\d+)MB').firstMatch(line);
+  final swapM = RegExp(r'SWAP\s+(\d+)/(\d+)MB').firstMatch(cleanLine);
   if (swapM != null) {
     swapUsed = int.tryParse(swapM.group(1)!) ?? 0;
     swapTotal = int.tryParse(swapM.group(2)!) ?? 0;
   }
 
   final List<TegraStatsCpuCore> cpus = [];
-  final cpuM = RegExp(r'CPU \[([^\]]+)\]').firstMatch(line);
+  final cpuM = RegExp(r'CPU\s*\[([^\]]+)\]').firstMatch(cleanLine);
   if (cpuM != null) {
     for (final part in cpuM.group(1)!.split(',')) {
       final m = RegExp(r'(\d+)%@(\d+)').firstMatch(part);
@@ -120,28 +122,34 @@ TegraStatsData? parseTegraStats(String line) {
 
   String gpuFreq = '', emcFreq = '';
   int gpuLoadPct = 0;
-  final gr3dM = RegExp(r'GR3D_FREQ (\d+)%@(\d+)').firstMatch(line);
+  final gr3dM = RegExp(r'GR3D_FREQ\s+(\d+)%(?:@(\d+))?').firstMatch(cleanLine);
   if (gr3dM != null) {
     gpuLoadPct = int.tryParse(gr3dM.group(1)!) ?? 0;
-    gpuFreq = '${gr3dM.group(2)!} MHz';
+    final freqGroup = gr3dM.group(2);
+    gpuFreq = freqGroup != null ? '$freqGroup MHz' : 'off';
   }
 
-  final emcM = RegExp(r'EMC_FREQ \d+%@(\d+)').firstMatch(line);
-  if (emcM != null) emcFreq = '${emcM.group(1)!} MHz';
+  final emcM = RegExp(r'EMC_FREQ\s+\d+%(?:@(\d+))?').firstMatch(cleanLine);
+  if (emcM != null) {
+    final freqGroup = emcM.group(1);
+    emcFreq = freqGroup != null ? '$freqGroup MHz' : 'off';
+  }
 
   final Map<String, String> temps = {};
-  for (final m in RegExp(r'(\w+)@(\d+(?:\.\d+)?)C').allMatches(line)) {
+  for (final m in RegExp(r'(\w+)@(-?\d+(?:\.\d+)?)C').allMatches(cleanLine)) {
     temps[m.group(1)!] = '${m.group(2)!}°C';
   }
 
   final Map<String, String> power = {};
-  // Older boards: "VDD_IN@1560mW"
-  for (final m in RegExp(r'(\w+)@(\d+(?:\.\d+)?)mW').allMatches(line)) {
-    power[m.group(1)!] = '${m.group(2)!} mW';
-  }
-  // Orin boards: "VDD_GPU_SOC 3568mW/3701mW" (current/average pair)
-  for (final m
-      in RegExp(r'(\w+)\s+(\d+(?:\.\d+)?)mW/\d+(?:\.\d+)?mW').allMatches(line)) {
+  // Power rails come in two real-world shapes:
+  //   - with unit:    VDD_IN@1560mW, VDD_IN 2841mW, VDD_GPU_SOC 3568mW/3701mW
+  //   - without unit: VDD_SYS_GPU 152/152, VDD_4V0_WIFI 0/0 (older TX/Nano L4T)
+  // We capture only the current value (group 2). The no-unit form is gated on a
+  // `/avg` companion so bare clocks (VIC_FREQ 115, APE 174) are ignored, and the
+  // `(?!…MB)` lookahead keeps memory readings (RAM 1024/3956MB) from matching.
+  for (final m in RegExp(
+    r'(\w+)(?:@|\s+)(\d+(?:\.\d+)?)(?:\s*mW|/\d+(?:\.\d+)?(?!\.?\d*\s*MB))',
+  ).allMatches(cleanLine)) {
     power[m.group(1)!] = '${m.group(2)!} mW';
   }
 
@@ -162,12 +170,38 @@ TegraStatsData? parseTegraStats(String line) {
 /// Returns the most recent parseable stats line from a multi-line capture,
 /// or null if none parse.
 TegraStatsData? parseTegraStatsBlock(String text) {
+  // Fast path: a clean capture where each sample is its own line (PTY/SSH).
   TegraStatsData? last;
   for (final line in text.split('\n')) {
     final parsed = parseTegraStats(line);
     if (parsed != null) last = parsed;
   }
-  return last;
+  if (last != null) return last;
+
+  // Fallback: some serial consoles hard-wrap the single long tegrastats line
+  // across several physical lines, duplicating the character at each wrap
+  // boundary (e.g. `(cached 0` + `0MB)`). Rejoin the fragments into one logical
+  // line and parse that. Only reached when no whole line parsed on its own, so
+  // clean output is never disturbed.
+  return parseTegraStats(_unwrapLine(text));
+}
+
+/// Rejoins a serial-wrapped capture into one line, dropping the character a
+/// buggy console duplicates at each wrap point (prev line's last char repeated
+/// as the next line's first char).
+String _unwrapLine(String text) {
+  final clean = stripAnsi(text).replaceAll('\r', '');
+  final buf = StringBuffer();
+  String? prevLast;
+  for (final line in clean.split('\n')) {
+    if (line.isEmpty) continue;
+    var seg = line;
+    if (prevLast != null && seg[0] == prevLast) seg = seg.substring(1);
+    if (seg.isEmpty) continue;
+    buf.write(seg);
+    prevLast = seg[seg.length - 1];
+  }
+  return buf.toString();
 }
 
 // ---------------------------------------------------------------------------

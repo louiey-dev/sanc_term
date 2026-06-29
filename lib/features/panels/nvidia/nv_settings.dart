@@ -227,7 +227,7 @@ class _InfoBlockState extends ConsumerState<_InfoBlock> {
           ),
           if (_status != null) ...[
             const SizedBox(height: 12),
-            Text(
+            SelectableText(
               _status!,
               style: TextStyle(
                 fontSize: 11,
@@ -252,9 +252,11 @@ class _TegraStatsBlock extends ConsumerStatefulWidget {
 }
 
 class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
-  // One short tegrastats sample: start it, let one line print, then stop.
+  // One short tegrastats sample: start it, let a line print, then stop. A 500ms
+  // interval means the first line lands well inside the 1.5s window, so a sample
+  // is never killed before it prints at least one line.
   static const _sampleCmd =
-      'tegrastats --interval 1000 & sleep 1.5; kill \$! 2>/dev/null';
+      'tegrastats --interval 500 & sleep 1.5; kill \$! 2>/dev/null';
 
   // ≈1 hour of samples at the 2s auto-refresh interval (1800 ticks).
   static const _maxHistory = 1800;
@@ -320,7 +322,13 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
           _appendHistory(data);
         } else {
           _isWarning = true;
-          _status = 'No tegrastats output — is it installed / on PATH?';
+          final cleanOut = out.trim().replaceAll('\r', '');
+          final preview = cleanOut.isEmpty
+              ? '(no output — is `tegrastats` on PATH? try a PTY/SSH console)'
+              : (cleanOut.length > 400
+                    ? '${cleanOut.substring(0, 400)}…'
+                    : cleanOut);
+          _status = 'Parse failed. Raw output:\n$preview';
         }
       });
     } catch (e) {
@@ -411,7 +419,7 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
             ),
           if (_status != null) ...[
             const SizedBox(height: 12),
-            Text(
+            SelectableText(
               _status!,
               style: TextStyle(
                 fontSize: 11,

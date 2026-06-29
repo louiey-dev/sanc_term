@@ -268,24 +268,32 @@ class _TerminalPane extends ConsumerWidget {
                 ],
                 Icon(icon, size: 12, color: c.muted),
                 const SizedBox(width: 6),
-                Text(
-                  tab.label,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                    color: labelColor,
+                Flexible(
+                  child: Text(
+                    tab.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                      color: labelColor,
+                    ),
                   ),
                 ),
                 if (port.isNotEmpty) ...[
                   const SizedBox(width: 6),
-                  Text(
-                    port,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontFamily: 'Consolas',
-                      fontWeight: FontWeight.w600,
-                      color: c.primary,
+                  Flexible(
+                    child: Text(
+                      port,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontFamily: 'Consolas',
+                        fontWeight: FontWeight.w600,
+                        color: c.primary,
+                      ),
                     ),
                   ),
                 ],
@@ -365,51 +373,61 @@ class _Toolbar extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          Text(
-            'TERMINALS',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.5,
-              color: c.muted,
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'TERMINALS',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.5,
+                      color: c.muted,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Add tab
+                  PopupMenuButton<String>(
+                    tooltip: 'Add terminal',
+                    color: c.card,
+                    icon: Icon(Icons.add, size: 16, color: c.muted),
+                    iconSize: 16,
+                    padding: EdgeInsets.zero,
+                    onSelected: (val) =>
+                        val == 'serial' ? tabsNotifier.addSerial() : tabsNotifier.addPty(),
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'serial',
+                        child: Row(
+                          children: [
+                            Icon(Icons.usb, size: 14, color: c.muted),
+                            const SizedBox(width: 8),
+                            Text('New Serial',
+                                style: TextStyle(fontSize: 12, color: c.foreground)),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'pty',
+                        child: Row(
+                          children: [
+                            Icon(Icons.terminal, size: 14, color: c.muted),
+                            const SizedBox(width: 8),
+                            Text('New PTY',
+                                style: TextStyle(fontSize: 12, color: c.foreground)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 8),
-          // Add tab
-          PopupMenuButton<String>(
-            tooltip: 'Add terminal',
-            color: c.card,
-            icon: Icon(Icons.add, size: 16, color: c.muted),
-            iconSize: 16,
-            padding: EdgeInsets.zero,
-            onSelected: (val) =>
-                val == 'serial' ? tabsNotifier.addSerial() : tabsNotifier.addPty(),
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'serial',
-                child: Row(
-                  children: [
-                    Icon(Icons.usb, size: 14, color: c.muted),
-                    const SizedBox(width: 8),
-                    Text('New Serial',
-                        style: TextStyle(fontSize: 12, color: c.foreground)),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'pty',
-                child: Row(
-                  children: [
-                    Icon(Icons.terminal, size: 14, color: c.muted),
-                    const SizedBox(width: 8),
-                    Text('New PTY',
-                        style: TextStyle(fontSize: 12, color: c.foreground)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
           // Pause (global)
           _MiniBtn(
             icon: isPaused ? Icons.play_arrow : Icons.pause,
