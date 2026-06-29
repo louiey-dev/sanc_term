@@ -81,6 +81,9 @@ So the flow is:
     - add about pop up window
   - added most of panels with default menu items but not tested&verified
   - test&verified 'Tegra Stats' menu and plot
+- 2026.06.29
+  - uart message send to unselected port issue fixed
+    - uart message send to selected uart window
 
 ## Info
 

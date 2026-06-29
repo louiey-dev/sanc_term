@@ -33,6 +33,7 @@ class ConnectionBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
     final ports = ref.watch(availablePortsNotifierProvider);
+    final isScanning = ref.watch(serialScanLoadingProvider);
     final themeMode = ref.watch(themeModeProvider);
     final isDark = themeMode == ThemeMode.dark;
 
@@ -89,8 +90,8 @@ class ConnectionBar extends ConsumerWidget {
                   const SizedBox(width: 12),
 
                   // Which SERIAL pane the bar acts on
-                  _ActivePaneChip(label: activeLabel),
-                  const SizedBox(width: 8),
+                  // _ActivePaneChip(label: activeLabel),
+                  // const SizedBox(width: 8),
 
                   // Border profile button
                   const BoardProfilePicker(),
@@ -98,9 +99,9 @@ class ConnectionBar extends ConsumerWidget {
 
                   // scan button
                   _ToolbarButton(
-                    icon: Icons.search,
-                    label: 'Scan',
-                    onPressed: isConnected
+                    icon: isScanning ? Icons.hourglass_empty : Icons.search,
+                    label: isScanning ? 'Scanning...' : 'Scan',
+                    onPressed: (isConnected || isScanning)
                         ? null
                         : () => ref
                               .read(availablePortsNotifierProvider.notifier)
@@ -132,7 +133,7 @@ class ConnectionBar extends ConsumerWidget {
                         : (v) {
                             if (v != null) paneN!.setPort(v);
                           },
-                    width: 110,
+                    width: 70,
                   ),
 
                   const ToolbarDivider(),
@@ -159,7 +160,7 @@ class ConnectionBar extends ConsumerWidget {
                         : (v) {
                             if (v != null) paneN!.setBaudRate(v);
                           },
-                    width: 100,
+                    width: 90,
                   ),
 
                   const ToolbarDivider(),

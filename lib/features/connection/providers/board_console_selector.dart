@@ -30,17 +30,31 @@ class SerialBoardConsole implements BoardConsole {
 }
 
 /// Picks the console to run board commands on, by priority:
-///   1. the first connected SERIAL pane;
-///   2. otherwise a connected PTY pane (where the user may have SSH'd in);
-///   3. otherwise null — the caller should warn that nothing is connected.
+///   1. the active/selected SERIAL pane (if connected);
+///   2. otherwise the first connected SERIAL pane;
+///   3. otherwise a connected PTY pane (where the user may have SSH'd in);
+///   4. otherwise null — the caller should warn that nothing is connected.
 BoardConsole? pickBoardConsole(WidgetRef ref) {
+  // 1. Try the active/selected SERIAL pane first
+  final activeId = ref.read(effectiveActiveSerialTabIdProvider);
+  if (activeId != null) {
+    final notifier = ref.read(serialPaneNotifierProvider(activeId).notifier);
+    if (notifier.isConnected) {
+      return SerialBoardConsole(id: activeId, notifier: notifier);
+    }
+  }
+
+  // 2. Fallback to the first connected SERIAL pane
   for (final tab in ref.read(terminalTabsNotifierProvider)) {
     if (tab.type != TerminalTabType.serial) continue;
+    if (tab.id == activeId) continue; // Already checked above
     final notifier = ref.read(serialPaneNotifierProvider(tab.id).notifier);
     if (notifier.isConnected) {
       return SerialBoardConsole(id: tab.id, notifier: notifier);
     }
   }
+
+  // 3. Fallback to a connected PTY pane
   for (final console in ref.read(boardConsoleRegistryProvider).all) {
     if (console.kind == ConsoleKind.pty && console.isConnected) return console;
   }
