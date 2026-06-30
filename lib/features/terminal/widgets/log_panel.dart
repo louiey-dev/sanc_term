@@ -13,6 +13,7 @@ import 'package:sanc_term/features/connection/providers/board_console.dart';
 import 'package:sanc_term/features/connection/providers/serial_pane_provider.dart';
 import 'package:sanc_term/features/terminal/models/terminal_tab.dart';
 import 'package:sanc_term/features/terminal/providers/terminal_instances.dart';
+import 'package:sanc_term/features/terminal/providers/terminal_credentials_provider.dart';
 import 'package:sanc_term/services/file_logger_service.dart';
 
 class LogPanel extends ConsumerStatefulWidget {
@@ -428,6 +429,8 @@ class _Toolbar extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 8),
+          const _CredentialsFields(),
+          const SizedBox(width: 8),
           // Pause (global)
           _MiniBtn(
             icon: isPaused ? Icons.play_arrow : Icons.pause,
@@ -506,6 +509,136 @@ class _MiniBtn extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(4),
           child: Icon(icon, size: 16, color: color),
+        ),
+      ),
+    );
+  }
+}
+
+class _CredentialsFields extends ConsumerStatefulWidget {
+  const _CredentialsFields();
+
+  @override
+  ConsumerState<_CredentialsFields> createState() => _CredentialsFieldsState();
+}
+
+class _CredentialsFieldsState extends ConsumerState<_CredentialsFields> {
+  late final TextEditingController _ipController;
+  late final TextEditingController _idController;
+  late final TextEditingController _passwordController;
+
+  @override
+  void initState() {
+    super.initState();
+    final initial = ref.read(terminalCredentialsNotifierProvider);
+    _ipController = TextEditingController(text: initial.ip);
+    _idController = TextEditingController(text: initial.id);
+    _passwordController = TextEditingController(text: initial.password);
+  }
+
+  @override
+  void dispose() {
+    _ipController.dispose();
+    _idController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<TerminalCredentials>(
+      terminalCredentialsNotifierProvider,
+      (prev, next) {
+        if (next.ip != _ipController.text) {
+          _ipController.text = next.ip;
+        }
+        if (next.id != _idController.text) {
+          _idController.text = next.id;
+        }
+        if (next.password != _passwordController.text) {
+          _passwordController.text = next.password;
+        }
+      },
+    );
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildField(
+          controller: _ipController,
+          hintText: 'IP Address',
+          width: 120,
+          onChanged: (val) => ref
+              .read(terminalCredentialsNotifierProvider.notifier)
+              .updateIp(val),
+        ),
+        const SizedBox(width: 6),
+        _buildField(
+          controller: _idController,
+          hintText: 'ID',
+          width: 80,
+          onChanged: (val) => ref
+              .read(terminalCredentialsNotifierProvider.notifier)
+              .updateId(val),
+        ),
+        const SizedBox(width: 6),
+        _buildField(
+          controller: _passwordController,
+          hintText: 'Password',
+          width: 100,
+          obscureText: true,
+          onChanged: (val) => ref
+              .read(terminalCredentialsNotifierProvider.notifier)
+              .updatePassword(val),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildField({
+    required TextEditingController controller,
+    required String hintText,
+    required double width,
+    required ValueChanged<String> onChanged,
+    bool obscureText = false,
+  }) {
+    final c = context.colors;
+    return SizedBox(
+      width: width,
+      height: 24,
+      child: TextField(
+        controller: controller,
+        obscureText: obscureText,
+        onChanged: onChanged,
+        style: TextStyle(
+          fontFamily: 'Consolas',
+          fontSize: 11,
+          color: c.foreground,
+        ),
+        decoration: InputDecoration(
+          hintText: hintText,
+          hintStyle: TextStyle(
+            fontSize: 10,
+            color: c.muted.withValues(alpha: 0.7),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 0,
+          ),
+          filled: true,
+          fillColor: c.surface,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: BorderSide(color: c.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: BorderSide(color: c.border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(4),
+            borderSide: BorderSide(color: c.primary),
+          ),
         ),
       ),
     );

@@ -28,6 +28,7 @@ Future<void> _initHive() async {
   }
   await Directory(hivePath).create(recursive: true);
   Hive.init(hivePath);
+  await Hive.openBox<String>('app_settings');
 }
 
 Future<void> _initWindow() async {

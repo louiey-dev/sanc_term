@@ -51,7 +51,10 @@ class _NvNvmePanelState extends ConsumerState<NvNvmePanel> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SelectableText(
-                'sudo apt update && sudo apt install -y fio hdparm',
+                '''sudo apt update && sudo apt install -y fio hdparm
+sudo add-apt-repository ppa:jonmagon/kdiskmark
+sudo apt install -y kdiskmark
+                ''',
                 style: TextStyle(
                   fontSize: 11,
                   fontFamily: 'Consolas',

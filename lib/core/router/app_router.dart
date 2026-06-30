@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:hive_ce/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/features/home/home_screen.dart';
@@ -11,10 +12,13 @@ part 'app_router.g.dart';
 
 @Riverpod(keepAlive: true)
 GoRouter appRouter(Ref ref) {
+  final box = Hive.box<String>('app_settings');
+  final lastRoute = box.get('last_route', defaultValue: '/home') ?? '/home';
+
   final router = GoRouter(
-    initialLocation: '/home',
+    initialLocation: lastRoute,
     routes: [
-      GoRoute(path: '/', redirect: (_, __) => '/home'),
+      GoRoute(path: '/', redirect: (_, __) => lastRoute),
       ShellRoute(
         builder: (ctx, state, child) => HomeScreen(child: child),
         routes: [
@@ -38,6 +42,16 @@ GoRouter appRouter(Ref ref) {
       ),
     ],
   );
+
+  // Persist the route when it changes
+  router.routerDelegate.addListener(() {
+    final route = router.routerDelegate.currentConfiguration;
+    final uriStr = route.uri.toString();
+    if (uriStr.startsWith('/home')) {
+      box.put('last_route', uriStr);
+    }
+  });
+
   ref.onDispose(router.dispose);
   return router;
 }

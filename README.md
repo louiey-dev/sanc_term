@@ -86,6 +86,7 @@ So the flow is:
     - uart message send to selected uart window
 - 2026.06.30
   - History button added at connection_bar for efficient history navigation
+  - save current panel and restore previously activated panel at start up
 
 ## Info
 
