@@ -6,6 +6,7 @@ import 'package:sanc_term/core/theme/theme_provider.dart';
 import 'package:sanc_term/features/connection/providers/serial_config_notifier.dart';
 import 'package:sanc_term/features/connection/providers/serial_pane_provider.dart';
 import 'package:sanc_term/features/connection/widgets/board_profile_picker.dart';
+import 'package:sanc_term/features/connection/widgets/cmd_history_dropdown.dart';
 import 'package:sanc_term/features/terminal/providers/terminal_instances.dart';
 import 'package:sanc_term/shared/models/serial_config.dart';
 import 'package:sanc_term/shared/widgets/common.dart';
@@ -96,6 +97,10 @@ class ConnectionBar extends ConsumerWidget {
                   // Border profile button
                   const BoardProfilePicker(),
                   const SizedBox(width: 4),
+
+                  // Command history dropdown
+                  const CmdHistoryDropdown(),
+                  const SizedBox(width: 8),
 
                   // scan button
                   _ToolbarButton(

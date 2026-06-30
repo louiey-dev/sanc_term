@@ -84,6 +84,8 @@ So the flow is:
 - 2026.06.29
   - uart message send to unselected port issue fixed
     - uart message send to selected uart window
+- 2026.06.30
+  - History button added at connection_bar for efficient history navigation
 
 ## Info
 
