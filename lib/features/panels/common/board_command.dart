@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sanc_term/core/utils/snackbars.dart';
+import 'package:sanc_term/core/utils/my_utils.dart';
 import 'package:sanc_term/features/connection/providers/board_console_selector.dart';
 
 /// Sends [command] fire-and-forget to the active board console (serial first,
@@ -15,7 +15,7 @@ void sendBoardCommand(
 }) {
   final console = pickBoardConsole(ref);
   if (console == null) {
-    showErrorSnackbar(context, 'No connected serial or PTY/SSH pane');
+    gUtils.showErrorSnackbar(context, 'No connected serial or PTY/SSH pane');
     return;
   }
   console.send('${command.trimRight()}$terminator');

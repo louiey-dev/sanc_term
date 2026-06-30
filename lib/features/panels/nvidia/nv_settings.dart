@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sanc_term/core/theme/sanc_term_theme.dart';
-import 'package:sanc_term/core/utils/snackbars.dart';
+import 'package:sanc_term/core/utils/my_utils.dart';
 import 'package:sanc_term/features/connection/providers/board_console.dart';
 import 'package:sanc_term/features/connection/providers/board_console_selector.dart';
 import 'package:sanc_term/features/panels/nvidia/nv_common.dart';
@@ -88,7 +88,7 @@ class _InfoBlockState extends ConsumerState<_InfoBlock> {
         _isWarning = true;
         _status = 'No connected PTY/SSH or serial pane — connect one first.';
       });
-      showErrorSnackbar(context, 'No connected console to read from');
+      gUtils.showErrorSnackbar(context, 'No connected console to read from');
       return;
     }
 
@@ -117,7 +117,7 @@ class _InfoBlockState extends ConsumerState<_InfoBlock> {
         _isWarning = true;
         _status = 'Read failed: $e';
       });
-      showErrorSnackbar(context, 'Board info read failed');
+      gUtils.showErrorSnackbar(context, 'Board info read failed');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -175,7 +175,7 @@ class _InfoBlockState extends ConsumerState<_InfoBlock> {
       ),
     );
     if (ok == true && mounted) {
-      showSnackbar(context, 'Reboot: not implemented');
+      gUtils.showSnackbar(context, 'Reboot: not implemented');
     }
   }
 
@@ -214,7 +214,7 @@ class _InfoBlockState extends ConsumerState<_InfoBlock> {
                 label: 'DTB Deploy',
                 tooltipStr: 'Deploy an updated device-tree blob',
                 onPressed: () =>
-                    showSnackbar(context, 'DTB deploy: not implemented'),
+                    gUtils.showSnackbar(context, 'DTB deploy: not implemented'),
               ),
               const SizedBox(width: 8),
               PanelActionButton(
