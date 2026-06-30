@@ -14,6 +14,7 @@ import 'package:sanc_term/features/connection/providers/serial_pane_provider.dar
 import 'package:sanc_term/features/terminal/models/terminal_tab.dart';
 import 'package:sanc_term/features/terminal/providers/terminal_instances.dart';
 import 'package:sanc_term/features/terminal/providers/terminal_credentials_provider.dart';
+import 'package:sanc_term/features/panels/common/board_command.dart';
 import 'package:sanc_term/services/file_logger_service.dart';
 
 class LogPanel extends ConsumerStatefulWidget {
@@ -131,8 +132,9 @@ class _LogPanelState extends ConsumerState<LogPanel> {
     }
   }
 
-  String get _shell =>
-      Platform.isWindows ? 'cmd.exe' : (Platform.environment['SHELL'] ?? 'bash');
+  String get _shell => Platform.isWindows
+      ? 'cmd.exe'
+      : (Platform.environment['SHELL'] ?? 'bash');
 
   List<String> get _shellArgs =>
       Platform.isWindows ? ['/k', 'chcp', '65001'] : [];
@@ -185,7 +187,8 @@ class _LogPanelState extends ConsumerState<LogPanel> {
                     onActivate: () {
                       ref.read(activeTabIdProvider.notifier).setActive(tab.id);
                       if (isSerial) {
-                        ref.read(serialActiveTabIdProvider.notifier).state = tab.id;
+                        ref.read(serialActiveTabIdProvider.notifier).state =
+                            tab.id;
                       }
                       tab.focusNode.requestFocus();
                     },
@@ -397,8 +400,9 @@ class _Toolbar extends ConsumerWidget {
                     icon: Icon(Icons.add, size: 16, color: c.muted),
                     iconSize: 16,
                     padding: EdgeInsets.zero,
-                    onSelected: (val) =>
-                        val == 'serial' ? tabsNotifier.addSerial() : tabsNotifier.addPty(),
+                    onSelected: (val) => val == 'serial'
+                        ? tabsNotifier.addSerial()
+                        : tabsNotifier.addPty(),
                     itemBuilder: (_) => [
                       PopupMenuItem(
                         value: 'serial',
@@ -406,8 +410,13 @@ class _Toolbar extends ConsumerWidget {
                           children: [
                             Icon(Icons.usb, size: 14, color: c.muted),
                             const SizedBox(width: 8),
-                            Text('New Serial',
-                                style: TextStyle(fontSize: 12, color: c.foreground)),
+                            Text(
+                              'New Serial',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: c.foreground,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -417,8 +426,13 @@ class _Toolbar extends ConsumerWidget {
                           children: [
                             Icon(Icons.terminal, size: 14, color: c.muted),
                             const SizedBox(width: 8),
-                            Text('New PTY',
-                                style: TextStyle(fontSize: 12, color: c.foreground)),
+                            Text(
+                              'New PTY',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: c.foreground,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -546,24 +560,51 @@ class _CredentialsFieldsState extends ConsumerState<_CredentialsFields> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<TerminalCredentials>(
-      terminalCredentialsNotifierProvider,
-      (prev, next) {
-        if (next.ip != _ipController.text) {
-          _ipController.text = next.ip;
-        }
-        if (next.id != _idController.text) {
-          _idController.text = next.id;
-        }
-        if (next.password != _passwordController.text) {
-          _passwordController.text = next.password;
-        }
-      },
-    );
+    final c = context.colors;
+    ref.listen<TerminalCredentials>(terminalCredentialsNotifierProvider, (
+      prev,
+      next,
+    ) {
+      if (next.ip != _ipController.text) {
+        _ipController.text = next.ip;
+      }
+      if (next.id != _idController.text) {
+        _idController.text = next.id;
+      }
+      if (next.password != _passwordController.text) {
+        _passwordController.text = next.password;
+      }
+    });
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        SizedBox(
+          height: 24,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              backgroundColor: c.surface,
+              foregroundColor: c.primary,
+              elevation: 0,
+              textStyle: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            onPressed: () {
+              final ip = _ipController.text.trim();
+              final id = _idController.text.trim();
+              if (ip.isEmpty || id.isEmpty) return;
+              sendBoardCommand(ref, context, 'ssh $id@$ip');
+            },
+            child: const Text('SSH'),
+          ),
+        ),
+        const SizedBox(width: 6),
         _buildField(
           controller: _ipController,
           hintText: 'IP Address',
@@ -573,6 +614,7 @@ class _CredentialsFieldsState extends ConsumerState<_CredentialsFields> {
               .updateIp(val),
         ),
         const SizedBox(width: 6),
+
         _buildField(
           controller: _idController,
           hintText: 'ID',

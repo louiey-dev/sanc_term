@@ -88,6 +88,7 @@ So the flow is:
   - History button added at connection_bar for efficient history navigation
   - save current panel and restore previously activated panel at start up
   - added my_utils.dart which includes logger/snackbar and other utilities
+  - add ssh button
 
 ## Info
 

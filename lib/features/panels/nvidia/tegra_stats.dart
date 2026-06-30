@@ -3,6 +3,8 @@ import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/core/utils/formatters.dart';
 import 'package:sanc_term/shared/widgets/common.dart';
 
+import '../../../core/utils/my_utils.dart';
+
 // ---------------------------------------------------------------------------
 // Data classes
 // ---------------------------------------------------------------------------
@@ -53,18 +55,18 @@ class TegraSample {
   });
 
   Map<String, double> toMap() => {
-        'cpuTemp': cpuTemp,
-        'gpuTemp': gpuTemp,
-        'gpuLoad': gpuLoad,
-        'memLoad': memLoad,
-      };
+    'cpuTemp': cpuTemp,
+    'gpuTemp': gpuTemp,
+    'gpuLoad': gpuLoad,
+    'memLoad': memLoad,
+  };
 
   factory TegraSample.fromMap(Map<dynamic, dynamic> m) => TegraSample(
-        cpuTemp: (m['cpuTemp'] as num?)?.toDouble() ?? 0,
-        gpuTemp: (m['gpuTemp'] as num?)?.toDouble() ?? 0,
-        gpuLoad: (m['gpuLoad'] as num?)?.toDouble() ?? 0,
-        memLoad: (m['memLoad'] as num?)?.toDouble() ?? 0,
-      );
+    cpuTemp: (m['cpuTemp'] as num?)?.toDouble() ?? 0,
+    gpuTemp: (m['gpuTemp'] as num?)?.toDouble() ?? 0,
+    gpuLoad: (m['gpuLoad'] as num?)?.toDouble() ?? 0,
+    memLoad: (m['memLoad'] as num?)?.toDouble() ?? 0,
+  );
 }
 
 double _tempValue(Map<String, String> temps, String needle) {
@@ -78,11 +80,11 @@ double _tempValue(Map<String, String> temps, String needle) {
 
 /// Reduces a full stats line to the plotted metrics.
 TegraSample tegraSample(TegraStatsData s) => TegraSample(
-      cpuTemp: _tempValue(s.temps, 'cpu'),
-      gpuTemp: _tempValue(s.temps, 'gpu'),
-      gpuLoad: s.gpuLoadPct.toDouble(),
-      memLoad: s.ramTotal > 0 ? s.ramUsed / s.ramTotal * 100 : 0,
-    );
+  cpuTemp: _tempValue(s.temps, 'cpu'),
+  gpuTemp: _tempValue(s.temps, 'gpu'),
+  gpuLoad: s.gpuLoadPct.toDouble(),
+  memLoad: s.ramTotal > 0 ? s.ramUsed / s.ramTotal * 100 : 0,
+);
 
 // ---------------------------------------------------------------------------
 // Parser — one `tegrastats` line, e.g.
@@ -91,6 +93,7 @@ TegraSample tegraSample(TegraStatsData s) => TegraSample(
 
 TegraStatsData? parseTegraStats(String line) {
   final cleanLine = stripAnsi(line);
+
   if (!cleanLine.contains('RAM') || !cleanLine.contains('CPU')) return null;
 
   final ramM = RegExp(r'RAM\s+(\d+)/(\d+)MB').firstMatch(cleanLine);
@@ -265,14 +268,14 @@ Widget buildStatsDisplay(AppColors c, TegraStatsData s) {
 // ---------------------------------------------------------------------------
 
 Widget _sectionLabel(AppColors c, String text) => Text(
-      text,
-      style: TextStyle(
-        fontSize: 10,
-        fontWeight: FontWeight.w700,
-        color: c.muted,
-        letterSpacing: 1.2,
-      ),
-    );
+  text,
+  style: TextStyle(
+    fontSize: 10,
+    fontWeight: FontWeight.w700,
+    color: c.muted,
+    letterSpacing: 1.2,
+  ),
+);
 
 Widget _tc(
   AppColors c,
@@ -311,10 +314,10 @@ Widget _th(AppColors c, String text) {
 }
 
 TableBorder _border(AppColors c) => TableBorder.all(
-      color: c.border,
-      width: 0.5,
-      borderRadius: BorderRadius.circular(4),
-    );
+  color: c.border,
+  width: 0.5,
+  borderRadius: BorderRadius.circular(4),
+);
 
 Widget _memTable(AppColors c, TegraStatsData s) {
   return Table(
@@ -494,7 +497,12 @@ Widget _powerTable(AppColors c, Map<String, String> power) {
               : null,
           children: [
             _tc(c, entries[i].key, color: c.muted),
-            _tc(c, entries[i].value, color: c.chartBlue, align: TextAlign.right),
+            _tc(
+              c,
+              entries[i].value,
+              color: c.chartBlue,
+              align: TextAlign.right,
+            ),
           ],
         ),
       TableRow(

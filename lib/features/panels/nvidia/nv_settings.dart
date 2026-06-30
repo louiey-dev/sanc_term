@@ -311,6 +311,7 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
         timeout: const Duration(seconds: 6),
       );
       final data = parseTegraStatsBlock(out);
+
       if (!mounted) return;
       setState(() {
         _loading = false;
