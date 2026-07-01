@@ -89,6 +89,8 @@ So the flow is:
   - save current panel and restore previously activated panel at start up
   - added my_utils.dart which includes logger/snackbar and other utilities
   - add ssh button
+- 2026.07.01
+  - scan com port list took long time and fixed it
 
 ## Info
 
