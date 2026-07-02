@@ -3,6 +3,8 @@ import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/core/utils/formatters.dart';
 import 'package:sanc_term/shared/widgets/common.dart';
 
+import '../../../core/utils/my_utils.dart';
+
 // ---------------------------------------------------------------------------
 // Data classes
 // ---------------------------------------------------------------------------
@@ -83,6 +85,74 @@ TegraSample tegraSample(TegraStatsData s) => TegraSample(
   gpuLoad: s.gpuLoadPct.toDouble(),
   memLoad: s.ramTotal > 0 ? s.ramUsed / s.ramTotal * 100 : 0,
 );
+
+/// Maps a parsed stats line to the flat telemetry schema documented in
+/// `tegrastats_format.md` (the `d` object). Metrics this particular line didn't
+/// carry are emitted as `null` so the external tool can tell "0" from "absent".
+Map<String, dynamic> tegraTelemetry(TegraStatsData s) {
+  double? firstDigits(String v) {
+    final m = RegExp(r'-?\d+(?:\.\d+)?').firstMatch(v);
+    return m == null ? null : double.tryParse(m.group(0)!);
+  }
+
+  // Temperatures matching a needle, in the order they appeared on the line.
+  List<double?> tempsMatching(String needle) => s.temps.entries
+      .where((e) => e.key.toLowerCase().contains(needle))
+      .map((e) => firstDigits(e.value))
+      .toList();
+
+  double? tempAt(String needle, [int index = 0]) {
+    final list = tempsMatching(needle);
+    return index < list.length ? list[index] : null;
+  }
+
+  double? powerFor(String needle) {
+    for (final e in s.power.entries) {
+      if (e.key.toLowerCase().contains(needle)) return firstDigits(e.value);
+    }
+    return null;
+  }
+
+  final cpuTemps = tempsMatching('cpu');
+  final online = s.cpus.where((core) => !core.isOff).toList();
+  final cpuLoad = online.isEmpty
+      ? null
+      : online.fold<int>(0, (a, core) => a + core.usagePct) / online.length;
+  final cpuClk = online.isEmpty
+      ? null
+      : online
+            .fold<int>(0, (a, core) => core.freqMhz > a ? core.freqMhz : a)
+            .toDouble();
+
+  double? coreLoad(int i) => i < s.cpus.length && !s.cpus[i].isOff
+      ? s.cpus[i].usagePct.toDouble()
+      : null;
+
+  // Prefer an explicit total rail; otherwise sum every rail we parsed.
+  final totalRail = powerFor('vdd_in') ?? powerFor('pom') ?? powerFor('total');
+  final powerSum = s.power.isEmpty
+      ? null
+      : s.power.values.fold<double>(0, (a, v) => a + (firstDigits(v) ?? 0));
+
+  Map<String, dynamic> parsedData = {
+    'cpu0_temp_c': cpuTemps.isNotEmpty ? cpuTemps[0] : null,
+    'cpu1_temp_c': cpuTemps.length > 1 ? cpuTemps[1] : null,
+    'gpu_temp_c': tempAt('gpu'),
+    'soc_temp_c': tempAt('soc'),
+    'tj_temp_c': tempAt('tj'),
+    'cpu_load_pct': cpuLoad,
+    for (int i = 0; i < 8; i++) 'core${i}_load_pct': coreLoad(i),
+    'gpu_load_pct': s.gpuFreq.isEmpty ? null : s.gpuLoadPct.toDouble(),
+    'cpu_clk_mhz': cpuClk,
+    'gpu_clk_mhz': firstDigits(s.gpuFreq),
+    'emc_clk_mhz': firstDigits(s.emcFreq),
+    'pwr_cpu_mw': powerFor('cpu'),
+    'pwr_gpu_mw': powerFor('gpu'),
+    'pwr_soc_mw': powerFor('soc'),
+    'pwr_total_mw': totalRail ?? powerSum,
+  };
+  return parsedData;
+}
 
 // ---------------------------------------------------------------------------
 // Parser — one `tegrastats` line, e.g.
@@ -168,23 +238,32 @@ TegraStatsData? parseTegraStats(String line) {
   );
 }
 
-/// Returns the most recent parseable stats line from a multi-line capture,
-/// or null if none parse.
+/// Returns the most recent *complete* stats sample from a multi-line capture,
+/// or null if none parse. "Complete" means it actually carried CPU cores — a
+/// RAM-only fragment (produced when a serial console wraps mid-sample) must not
+/// win, or the wrapped remainder gets discarded and every metric reads null.
 TegraStatsData? parseTegraStatsBlock(String text) {
   // Fast path: a clean capture where each sample is its own line (PTY/SSH).
   TegraStatsData? last;
   for (final line in text.split('\n')) {
     final parsed = parseTegraStats(line);
-    if (parsed != null) last = parsed;
+    if (parsed != null && parsed.cpus.isNotEmpty) last = parsed;
   }
   if (last != null) return last;
 
-  // Fallback: some serial consoles hard-wrap the single long tegrastats line
-  // across several physical lines, duplicating the character at each wrap
-  // boundary (e.g. `(cached 0` + `0MB)`). Rejoin the fragments into one logical
-  // line and parse that. Only reached when no whole line parsed on its own, so
-  // clean output is never disturbed.
-  return parseTegraStats(_unwrapLine(text));
+  // Fallback: some serial consoles hard-wrap the long tegrastats line across
+  // several physical lines, duplicating the character at each wrap boundary
+  // (e.g. `CPU [0%@` + `@729,…`). Rejoin the fragments, then re-split at each
+  // `RAM …MB` so multiple wrapped samples in one capture don't bleed into each
+  // other, and keep the last complete one. Only reached when no whole line
+  // parsed on its own, so clean output is never disturbed.
+  final unwrapped = _unwrapLine(text);
+  for (final chunk in unwrapped.split(RegExp(r'(?=RAM\s+\d+/\d+MB)'))) {
+    final parsed = parseTegraStats(chunk);
+    if (parsed != null && parsed.cpus.isNotEmpty) last = parsed;
+  }
+  // Last resort: parse the whole rejoined line even if cores are missing.
+  return last ?? parseTegraStats(unwrapped);
 }
 
 /// Rejoins a serial-wrapped capture into one line, dropping the character a

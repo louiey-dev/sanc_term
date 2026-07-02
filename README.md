@@ -93,6 +93,8 @@ So the flow is:
   - scan com port list took long time and fixed it
 - 2026.07.02
   - miner code fixed
+  - add localhost switch which sends parsed data to <http://localhost:18765>
+    - sanc_graph gets streamed data and display plot
 
 ## Info
 

@@ -9,6 +9,7 @@ import 'package:sanc_term/features/connection/providers/board_console_selector.d
 import 'package:sanc_term/features/panels/nvidia/nv_common.dart';
 import 'package:sanc_term/features/panels/nvidia/tegra_plot.dart';
 import 'package:sanc_term/features/panels/nvidia/tegra_stats.dart';
+import 'package:sanc_term/services/telemetry_server_service.dart';
 import 'package:sanc_term/shared/widgets/common.dart';
 import 'package:sanc_term/shared/widgets/panel.dart';
 
@@ -263,6 +264,8 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
 
   Timer? _timer;
   bool _loading = false;
+  bool _autoOn = false; // user's Auto (2s) toggle
+  bool _localhost = false; // stream parsed samples to the telemetry server
   TegraStatsData? _data;
   String? _status;
   bool _isWarning = false;
@@ -273,21 +276,56 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
   /// The floating plot window while open (null when closed).
   OverlayEntry? _plotEntry;
 
-  bool get _running => _timer != null;
-
-  void _toggle() {
-    if (_running) {
-      _stop();
-    } else {
+  /// A sample timer runs while Auto is on OR we're streaming to localhost.
+  void _syncSampling() {
+    final shouldRun = _autoOn || _localhost;
+    if (shouldRun && _timer == null) {
       _timer = Timer.periodic(const Duration(seconds: 2), (_) => _sample());
       _sample();
-      setState(() {});
+    } else if (!shouldRun && _timer != null) {
+      _timer!.cancel();
+      _timer = null;
     }
   }
 
+  void _toggleAuto() {
+    _autoOn = !_autoOn;
+    _syncSampling();
+    setState(() {});
+  }
+
+  /// Starts/stops the local SSE telemetry server. While on, samples are
+  /// forwarded to it instead of updating the in-app stats table / plot.
+  Future<void> _toggleLocalhost(bool on) async {
+    final server = ref.read(telemetryServerProvider);
+    if (on) {
+      try {
+        await server.start();
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _isWarning = true;
+          _status = 'Telemetry server failed to start: $e';
+        });
+        return;
+      }
+    } else {
+      await server.stop();
+    }
+    if (!mounted) return;
+    setState(() => _localhost = on);
+    _syncSampling();
+  }
+
+  /// Fully stops sampling and streaming (used on unrecoverable read errors).
   void _stop() {
     _timer?.cancel();
     _timer = null;
+    _autoOn = false;
+    if (_localhost) {
+      _localhost = false;
+      ref.read(telemetryServerProvider).stop();
+    }
     if (mounted) setState(() {});
   }
 
@@ -313,6 +351,20 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
       final data = parseTegraStatsBlock(out);
 
       if (!mounted) return;
+      // While streaming to localhost, forward the sample and leave the in-app
+      // stats table / plot untouched (frozen at their last values).
+      if (data != null && _localhost) {
+        final server = ref.read(telemetryServerProvider);
+        server.broadcast(tegraTelemetry(data));
+        setState(() {
+          _loading = false;
+          _isWarning = false;
+          _status =
+              'Streaming → http://localhost:${TelemetryServer.port}${TelemetryServer.path}'
+              ' · ${server.clientCount} client(s)';
+        });
+        return;
+      }
       setState(() {
         _loading = false;
         if (data != null) {
@@ -370,10 +422,42 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
   @override
   void dispose() {
     _timer?.cancel();
+    if (_localhost) ref.read(telemetryServerProvider).stop();
     _plotEntry?.remove();
     _plotEntry = null;
     _history.dispose();
     super.dispose();
+  }
+
+  /// Switch that mirrors parsed samples to the local SSE telemetry endpoint.
+  Widget _localhostToggle(AppColors c) {
+    return Row(
+      children: [
+        // Scaled down + shrink-wrapped so it lines up with the compact toolbar
+        // buttons instead of towering over them at the default 48px tap target.
+        Transform.scale(
+          scale: 0.7,
+          alignment: Alignment.centerLeft,
+          child: Switch(
+            value: _localhost,
+            onChanged: (v) => _toggleLocalhost(v),
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            _localhost
+                ? 'Streaming parsed tegrastats to '
+                      'http://localhost:${TelemetryServer.port}${TelemetryServer.path} '
+                      '— in-app view paused while on.'
+                : 'localhost — mirror parsed tegrastats to '
+                      ':${TelemetryServer.port}${TelemetryServer.path} for an external chart tool.',
+            style: TextStyle(fontSize: 11, color: c.muted),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -382,7 +466,9 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
     return MyPanelBody(
       icon: Icons.monitor_heart_outlined,
       title: 'Tegra Stats',
-      subtitle: _running ? 'Auto · 2s' : (_loading ? 'Reading…' : 'Stopped'),
+      subtitle: _localhost
+          ? 'Streaming · :${TelemetryServer.port}'
+          : (_autoOn ? 'Auto · 2s' : (_loading ? 'Reading…' : 'Stopped')),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -394,10 +480,10 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
           ),
           const SizedBox(width: 8),
           PanelActionButton(
-            icon: _running ? Icons.stop : Icons.play_arrow,
-            label: _running ? 'Stop' : 'Auto',
-            tooltipStr: _running ? 'Stop auto-refresh' : 'Auto-refresh (2s)',
-            onPressed: _toggle,
+            icon: _autoOn ? Icons.stop : Icons.play_arrow,
+            label: _autoOn ? 'Stop' : 'Auto',
+            tooltipStr: _autoOn ? 'Stop auto-refresh' : 'Auto-refresh (2s)',
+            onPressed: _toggleAuto,
           ),
           const SizedBox(width: 8),
           PanelActionButton(
@@ -411,6 +497,8 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _localhostToggle(c),
+          const SizedBox(height: 8),
           if (_data != null)
             buildStatsDisplay(c, _data!)
           else

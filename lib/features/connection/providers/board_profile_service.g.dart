@@ -24,7 +24,7 @@ final boardProfileBoxProvider = FutureProvider<Box<String>>.internal(
 // ignore: unused_element
 typedef BoardProfileBoxRef = FutureProviderRef<Box<String>>;
 String _$boardProfilesNotifierHash() =>
-    r'502b167a36e29b0195b615821e4910a3d4236a57';
+    r'117898245205a5460319b8656fbcf69a250f6a07';
 
 /// See also [BoardProfilesNotifier].
 @ProviderFor(BoardProfilesNotifier)

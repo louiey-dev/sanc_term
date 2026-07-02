@@ -23,7 +23,7 @@ final serialScanLoadingProvider =
 
 typedef _$SerialScanLoading = AutoDisposeNotifier<bool>;
 String _$availablePortsNotifierHash() =>
-    r'49070608a6d7b0392058cd84d0dd53fb6bcb9299';
+    r'318e1e1277cb99126032c8cdebacdd76e6c97ee8';
 
 /// See also [AvailablePortsNotifier].
 @ProviderFor(AvailablePortsNotifier)
