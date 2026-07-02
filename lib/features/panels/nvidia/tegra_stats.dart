@@ -3,8 +3,6 @@ import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/core/utils/formatters.dart';
 import 'package:sanc_term/shared/widgets/common.dart';
 
-import '../../../core/utils/my_utils.dart';
-
 // ---------------------------------------------------------------------------
 // Data classes
 // ---------------------------------------------------------------------------

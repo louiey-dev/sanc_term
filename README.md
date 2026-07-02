@@ -91,6 +91,8 @@ So the flow is:
   - add ssh button
 - 2026.07.01
   - scan com port list took long time and fixed it
+- 2026.07.02
+  - miner code fixed
 
 ## Info
 

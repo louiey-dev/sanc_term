@@ -127,6 +127,6 @@ class BoardProfilePicker extends ConsumerWidget {
           ),
         ],
       ),
-    );
+    ).then((_) => nameCtrl.dispose());
   }
 }

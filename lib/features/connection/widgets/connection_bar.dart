@@ -7,7 +7,6 @@ import 'package:sanc_term/features/connection/providers/serial_config_notifier.d
 import 'package:sanc_term/features/connection/providers/serial_pane_provider.dart';
 import 'package:sanc_term/features/connection/widgets/board_profile_picker.dart';
 import 'package:sanc_term/features/connection/widgets/cmd_history_dropdown.dart';
-import 'package:sanc_term/features/terminal/providers/terminal_instances.dart';
 import 'package:sanc_term/shared/models/serial_config.dart';
 import 'package:sanc_term/shared/widgets/common.dart';
 
@@ -49,13 +48,6 @@ class ConnectionBar extends ConsumerWidget {
         : null;
     final config = pane.config;
     final isConnected = pane.isConnected;
-
-    String? activeLabel;
-    if (hasPane) {
-      for (final t in ref.watch(terminalTabsNotifierProvider)) {
-        if (t.id == activeId) activeLabel = t.label;
-      }
-    }
 
     return Container(
       height: 48,
@@ -218,11 +210,8 @@ class ConnectionBar extends ConsumerWidget {
                 size: 18,
                 color: c.muted,
               ),
-              onPressed: () {
-                ref.read(themeModeProvider.notifier).state = isDark
-                    ? ThemeMode.light
-                    : ThemeMode.dark;
-              },
+              onPressed: () =>
+                  ref.read(themeModeProvider.notifier).toggle(),
             ),
           ),
 
@@ -240,43 +229,6 @@ class ConnectionBar extends ConsumerWidget {
   }
 }
 
-class _ActivePaneChip extends StatelessWidget {
-  const _ActivePaneChip({this.label});
-  final String? label;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: c.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.adjust,
-            size: 11,
-            color: label != null ? c.primary : c.muted,
-          ),
-          const SizedBox(width: 5),
-          Text(
-            label ?? 'No SERIAL pane',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1,
-              color: label != null ? c.foreground : c.muted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 /// App menu at the start of the connection bar. Opens COM settings / About in
 /// popup dialogs.

@@ -43,11 +43,13 @@ GoRouter appRouter(Ref ref) {
     ],
   );
 
-  // Persist the route when it changes
+  // Persist the route when it actually changes. The delegate notifies on every
+  // rebuild, so skip the write when the location is unchanged.
+  var lastPersisted = lastRoute;
   router.routerDelegate.addListener(() {
-    final route = router.routerDelegate.currentConfiguration;
-    final uriStr = route.uri.toString();
-    if (uriStr.startsWith('/home')) {
+    final uriStr = router.routerDelegate.currentConfiguration.uri.toString();
+    if (uriStr.startsWith('/home') && uriStr != lastPersisted) {
+      lastPersisted = uriStr;
       box.put('last_route', uriStr);
     }
   });

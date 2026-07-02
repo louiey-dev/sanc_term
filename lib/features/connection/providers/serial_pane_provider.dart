@@ -29,15 +29,18 @@ class SerialPaneState {
 
   bool get isConnected => status == SerialStatus.connected;
 
+  // Sentinel so `error` is preserved when omitted; pass `error: null` to clear.
+  static const _unset = Object();
+
   SerialPaneState copyWith({
     SerialConfig? config,
     SerialStatus? status,
-    String? error,
+    Object? error = _unset,
   }) {
     return SerialPaneState(
       config: config ?? this.config,
       status: status ?? this.status,
-      error: error,
+      error: identical(error, _unset) ? this.error : error as String?,
     );
   }
 }
@@ -96,7 +99,8 @@ class SerialPaneNotifier extends _$SerialPaneNotifier {
   Future<void> connect() async {
     final cfg = state.config;
     if (cfg.port.isEmpty || state.isConnected) return;
-    state = state.copyWith(status: SerialStatus.connecting);
+    // Clear any stale error from a previous attempt.
+    state = state.copyWith(status: SerialStatus.connecting, error: null);
 
     try {
       final port = SerialPort(cfg.port);
@@ -117,7 +121,8 @@ class SerialPaneNotifier extends _$SerialPaneNotifier {
       _reader = reader;
       _sub = reader.stream.listen(
         (data) {
-          final text = _decode(data, cfg.encoding);
+          // Read encoding live so changes mid-connection take effect.
+          final text = _decode(data, state.config.encoding);
           terminal?.write(text);
           _cmd.feed(text);
           ref.read(fileLoggerNotifierProvider.notifier).log(text);
@@ -131,11 +136,12 @@ class SerialPaneNotifier extends _$SerialPaneNotifier {
         },
       );
 
-      // Forward keystrokes from the terminal to the port.
+      // Forward keystrokes from the terminal to the port. Read newLine live so
+      // changes mid-connection take effect.
       terminal?.onOutput = (data) {
-        final out = cfg.newLine == NewLine.none
-            ? data
-            : data.replaceAll('\r', cfg.newLine.suffix);
+        final nl = state.config.newLine;
+        final out =
+            nl == NewLine.none ? data : data.replaceAll('\r', nl.suffix);
         try {
           _port?.write(Uint8List.fromList(utf8.encode(out)));
         } catch (_) {}
@@ -150,7 +156,7 @@ class SerialPaneNotifier extends _$SerialPaneNotifier {
 
   void disconnect() {
     _cleanup();
-    state = state.copyWith(status: SerialStatus.disconnected);
+    state = state.copyWith(status: SerialStatus.disconnected, error: null);
   }
 
   Terminal? _terminal() {

@@ -1,7 +1,7 @@
 {
   "commands": [
     {
-      "text": "Win Clean&Run",
+      "text": "Clean&Run",
       "tooltip": " flutter clean && flutter pub get && flutter run -d windows",
       "color": "#FFCC00",
       "command": "workbench.action.terminal.sendSequence",
@@ -12,7 +12,7 @@
       ]
     },
     {
-      "text": "Win Release Build",
+      "text": "Release Build",
       "tooltip": "flutter run -d windows --release",
       "color": "#00FF00",
       "command": "workbench.action.terminal.sendSequence",

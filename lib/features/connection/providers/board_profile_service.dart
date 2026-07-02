@@ -43,15 +43,17 @@ class BoardProfilesNotifier extends _$BoardProfilesNotifier {
 
   Future<void> setDefault(String id) async {
     final box = await ref.read(boardProfileBoxProvider.future);
-    final updated = box.values
-        .map((raw) => BoardProfile.fromJson(
-              jsonDecode(raw) as Map<String, dynamic>,
-            ))
-        .map((p) => p.copyWith(isDefault: p.id == id))
-        .toList();
-    await box.clear();
-    for (final p in updated) {
-      await box.put(p.id, jsonEncode(p.toJson()));
+    // Rewrite only the entries whose default flag actually changes, so a crash
+    // mid-update can never wipe the box (unlike a clear-then-rewrite).
+    for (final raw in box.values.toList()) {
+      final p = BoardProfile.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      final shouldBeDefault = p.id == id;
+      if (p.isDefault != shouldBeDefault) {
+        await box.put(
+          p.id,
+          jsonEncode(p.copyWith(isDefault: shouldBeDefault).toJson()),
+        );
+      }
     }
     await _load();
   }
