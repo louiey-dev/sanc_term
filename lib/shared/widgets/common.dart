@@ -169,3 +169,27 @@ class ProgressBar extends StatelessWidget {
     );
   }
 }
+
+/// A helper function that returns a customized VerticalDivider.
+Widget verticalDivider({
+  Color color = Colors.grey,
+  double thickness = 1,
+  double indent = 8,
+  double endIndent = 8,
+}) {
+  return VerticalDivider(
+    color: color,
+    thickness: thickness,
+    indent: indent,
+    endIndent: endIndent,
+  );
+}
+
+// You can then use it in a Row like this:
+// Row(
+//   children: [
+//     Text('Item 1'),
+//     verticalDivider(),
+//     Text('Item 2'),
+//   ],
+// )

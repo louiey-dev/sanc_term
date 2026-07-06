@@ -95,6 +95,8 @@ So the flow is:
   - miner code fixed
   - add localhost switch which sends parsed data to <http://localhost:18765>
     - sanc_graph gets streamed data and display plot
+- 2026.07.06
+  - add nVidia Ethernet performance test menu
 
 ## Info
 
