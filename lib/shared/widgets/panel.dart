@@ -249,7 +249,7 @@ class MyPanelBody extends StatelessWidget {
                     ),
                   ),
                   if (subtitle != null)
-                    Text(
+                    SelectableText(
                       subtitle!,
                       style: TextStyle(fontSize: 11, color: c.muted),
                     ),

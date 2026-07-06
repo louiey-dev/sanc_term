@@ -97,6 +97,7 @@ So the flow is:
     - sanc_graph gets streamed data and display plot
 - 2026.07.06
   - add nVidia Ethernet performance test menu
+  - add nvidia USB panel
 
 ## Info
 

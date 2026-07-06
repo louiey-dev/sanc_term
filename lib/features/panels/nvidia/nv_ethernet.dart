@@ -211,8 +211,8 @@ iperf3 -c <host_ip_address> -B <jetson_ip_address of eno1 or eth1>'''),
                   ),
                   const SelectableText(
                     '''\nYou can check your port speed via sudo ethtool eth1/eno1 | grep -E "Speed|Duplex|Link detected"
-For the best results, please make sure whether unused port has been down via sudo ifconfig eth1/eno1 down                    
-                    ''',
+For the best results, please make sure whether unused port has been down via sudo ifconfig eth1/eno1 down''',
+                    style: TextStyle(fontSize: 14, color: Colors.yellow),
                   ),
                 ],
               ),

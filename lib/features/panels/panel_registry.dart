@@ -23,6 +23,7 @@ import 'package:sanc_term/features/panels/nvidia/nv_leds.dart';
 import 'package:sanc_term/features/panels/nvidia/nv_nvme.dart';
 import 'package:sanc_term/features/panels/nvidia/nv_settings.dart';
 import 'package:sanc_term/features/panels/nvidia/nv_uart.dart';
+import 'package:sanc_term/features/panels/nvidia/nv_usb.dart';
 import 'package:sanc_term/features/panels/rockchip/rc_display.dart';
 import 'package:sanc_term/features/panels/rockchip/rc_gpio.dart';
 import 'package:sanc_term/features/panels/rockchip/rc_i2c.dart';
@@ -173,6 +174,12 @@ const panelGroups = [
         icon: Icons.storage,
       ),
       PanelEntry(
+        id: 'nv_usb',
+        label: 'USB',
+        description: 'nVidia USB settings',
+        icon: Icons.usb,
+      ),
+      PanelEntry(
         id: 'nv_audio',
         label: 'Audio',
         description: 'nVidia audio settings',
@@ -288,8 +295,7 @@ const panelGroups = [
 // builder to [_realPanels] below to override the stub for that id.
 final Map<String, Widget Function()> panelRegistry = {
   for (final group in panelGroups)
-    for (final entry in group.items)
-      entry.id: () => StubPanel(entry: entry),
+    for (final entry in group.items) entry.id: () => StubPanel(entry: entry),
   ..._realPanels,
 };
 
@@ -317,6 +323,7 @@ final Map<String, Widget Function()> _realPanels = {
   'nv_uart': () => const NvUartPanel(),
   'nv_leds': () => const NvLedPanel(),
   'nv_nvme': () => const NvNvmePanel(),
+  'nv_usb': () => const NvUsbPanel(),
   'nv_audio': () => const NvAudioPanel(),
   // Rockchip
   'rc_settings': () => const RcSettingsPanel(),
