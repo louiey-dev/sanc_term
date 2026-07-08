@@ -98,6 +98,9 @@ So the flow is:
 - 2026.07.06
   - add nVidia Ethernet performance test menu
   - add nvidia USB panel
+- 2026.07.08
+  - add bluetooth panel
+  - add udp panel
 
 ## Info
 

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:sanc_term/features/panels/bluetooth/bluetooth_le.dart';
 import 'package:sanc_term/features/panels/common/cm_cmd_history.dart';
 import 'package:sanc_term/features/panels/common/cm_general_settings.dart';
 import 'package:sanc_term/features/panels/common/cm_time_setting.dart';
+import 'package:sanc_term/features/panels/common/cm_udp.dart';
 import 'package:sanc_term/features/panels/common/stub_panel.dart';
 import 'package:sanc_term/features/panels/diagnostics/dn_cpu.dart';
 import 'package:sanc_term/features/panels/diagnostics/dn_display.dart';
@@ -58,6 +60,12 @@ const panelGroups = [
         label: 'Time Setting',
         description: 'Time configurations',
         icon: Icons.timer,
+      ),
+      PanelEntry(
+        id: 'cm_udp',
+        label: 'UDP',
+        description: 'Send/receive UDP datagrams',
+        icon: Icons.wifi_tethering,
       ),
     ],
   ),
@@ -289,6 +297,18 @@ const panelGroups = [
       ),
     ],
   ),
+  PanelGroup(
+    title: 'Bluetooth LE',
+    icon: Icons.bluetooth,
+    items: [
+      PanelEntry(
+        id: 'ble_panel',
+        label: 'Bluetooth LE',
+        description: 'Bluetooth LE quick access panel',
+        icon: Icons.bluetooth,
+      ),
+    ],
+  ),
 ];
 
 // Derived from panelGroups — every panel defaults to a StubPanel. Add a real
@@ -305,6 +325,7 @@ final Map<String, Widget Function()> _realPanels = {
   'cm_cmd_history': () => const CmCmdHistoryPanel(),
   'cm_general_settings': () => const CmGeneralSettingsPanel(),
   'cm_time_setting': () => const CmTimeSettingPanel(),
+  'cm_udp': () => const CmUdpPanel(),
   // Diagnostics
   'dn_power': () => const DnPowerPanel(),
   'dn_cpu': () => const DnCpuPanel(),
@@ -341,4 +362,6 @@ final Map<String, Widget Function()> _realPanels = {
   'esp_ota': () => const EspOtaPanel(),
   // On-device voice
   'odv_default': () => const OnDeviceVoicePanel(),
+  // Bluetooth LE
+  'ble_panel': () => const BlePanel(),
 };

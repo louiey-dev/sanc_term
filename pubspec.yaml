@@ -51,6 +51,7 @@ dependencies:
   file_picker: ^11.0.2
   path: ^1.9.1
   flutter_tts: ^4.2.5
+  universal_ble: ^1.2.0
 
 dev_dependencies:
   flutter_test:
