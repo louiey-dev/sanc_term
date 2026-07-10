@@ -123,9 +123,13 @@ class SerialPaneNotifier extends _$SerialPaneNotifier {
         (data) {
           // Read encoding live so changes mid-connection take effect.
           final text = _decode(data, state.config.encoding);
-          terminal?.write(text);
+          // Command capture must keep running even while paused.
           _cmd.feed(text);
-          ref.read(fileLoggerNotifierProvider.notifier).log(text);
+          // Pause only gates what reaches the terminal view and the log file.
+          if (!ref.read(terminalPausedProvider)) {
+            terminal?.write(text);
+            ref.read(fileLoggerNotifierProvider.notifier).log(text);
+          }
         },
         onError: (Object e) {
           state = state.copyWith(

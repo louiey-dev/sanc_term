@@ -101,6 +101,9 @@ So the flow is:
 - 2026.07.08
   - add bluetooth panel
   - add udp panel
+- 2026.07.10
+  - add NORDIC panel
+    - thingy53
 
 ## Info
 

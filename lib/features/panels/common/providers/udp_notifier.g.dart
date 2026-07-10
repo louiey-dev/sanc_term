@@ -6,7 +6,7 @@ part of 'udp_notifier.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$udpNotifierHash() => r'5b49792094f05b06570d9b498d9866b0f00d8468';
+String _$udpNotifierHash() => r'4fba20f7ba42b8971207ae74867af0a6f49c057b';
 
 /// See also [UdpNotifier].
 @ProviderFor(UdpNotifier)

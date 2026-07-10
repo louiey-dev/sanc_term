@@ -1,12 +1,19 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sanc_term/features/terminal/models/terminal_tab.dart';
 
 part 'terminal_instances.g.dart';
 
+/// Whether terminal output is paused. When true, panes (serial, PTY, BLE) stop
+/// writing to their terminal view and to the file logger; the underlying I/O and
+/// command capture keep running so nothing is actually lost on the wire.
+final terminalPausedProvider = StateProvider<bool>((ref) => false);
+
 @Riverpod(keepAlive: true)
 class TerminalTabsNotifier extends _$TerminalTabsNotifier {
   int _serialCount = 1;
   int _ptyCount = 1;
+  int _bleCount = 0;
 
   @override
   List<TerminalTab> build() => [
@@ -34,6 +41,18 @@ class TerminalTabsNotifier extends _$TerminalTabsNotifier {
         id: 'pty_${DateTime.now().millisecondsSinceEpoch}',
         type: TerminalTabType.pty,
         label: 'PTY $_ptyCount',
+      ),
+    ];
+  }
+
+  void addBle() {
+    _bleCount++;
+    state = [
+      ...state,
+      TerminalTab(
+        id: 'ble_${DateTime.now().millisecondsSinceEpoch}',
+        type: TerminalTabType.ble,
+        label: _bleCount == 1 ? 'BLE DATA' : 'BLE DATA $_bleCount',
       ),
     ];
   }

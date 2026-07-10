@@ -17,6 +17,9 @@ import 'package:sanc_term/features/panels/diagnostics/dn_wifi_ble.dart';
 import 'package:sanc_term/features/panels/esp/esp_at.dart';
 import 'package:sanc_term/features/panels/esp/esp_ota.dart';
 import 'package:sanc_term/features/panels/models/panel_entry.dart';
+import 'package:sanc_term/features/panels/nordic/nrf_ble.dart';
+import 'package:sanc_term/features/panels/nordic/nrf_uart.dart';
+import 'package:sanc_term/features/panels/nordic/thingy53.dart';
 import 'package:sanc_term/features/panels/nvidia/nv_audio.dart';
 import 'package:sanc_term/features/panels/nvidia/nv_ethernet.dart';
 import 'package:sanc_term/features/panels/nvidia/nv_gpio.dart';
@@ -274,6 +277,30 @@ const panelGroups = [
     ],
   ),
   PanelGroup(
+    title: 'NORDIC nRF',
+    icon: Icons.settings_input_antenna,
+    items: [
+      PanelEntry(
+        id: 'nrf_uart',
+        label: 'Nordic UART / Shell',
+        description: 'Zephyr shell & nRF91 modem AT commands',
+        icon: Icons.cable,
+      ),
+      PanelEntry(
+        id: 'nrf_ble',
+        label: 'Nordic Bluetooth',
+        description: 'Zephyr bt shell scan/advertise/connect',
+        icon: Icons.bluetooth,
+      ),
+      PanelEntry(
+        id: 'thingy53',
+        label: 'Thingy:53',
+        description: 'Thingy:53 EVM sensor, LED & BLE test',
+        icon: Icons.developer_board,
+      ),
+    ],
+  ),
+  PanelGroup(
     title: 'LTE MODULE',
     icon: Icons.lte_plus_mobiledata,
     items: [
@@ -360,6 +387,10 @@ final Map<String, Widget Function()> _realPanels = {
   // Espressif
   'esp_at': () => const EspAtPanel(),
   'esp_ota': () => const EspOtaPanel(),
+  // Nordic nRF
+  'nrf_uart': () => const NrfUartPanel(),
+  'nrf_ble': () => const NrfBlePanel(),
+  'thingy53': () => const Thingy53Panel(),
   // On-device voice
   'odv_default': () => const OnDeviceVoicePanel(),
   // Bluetooth LE

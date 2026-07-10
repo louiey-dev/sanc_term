@@ -5,14 +5,46 @@ import '../../../core/theme/sanc_term_theme.dart';
 import '../../../services/ble_service.dart';
 import '../../../shared/widgets/panel.dart';
 import 'providers/ble_notifier.dart';
+import 'widgets/ble_gatt_control.dart';
 
-class BlePanel extends ConsumerWidget {
+class BlePanel extends ConsumerStatefulWidget {
   const BlePanel({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BlePanel> createState() => _BlePanelState();
+}
+
+class _BlePanelState extends ConsumerState<BlePanel> {
+  final _filter = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Re-filter the list as the query changes.
+    _filter.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _filter.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(bleNotifierProvider);
     final notifier = ref.read(bleNotifierProvider.notifier);
+
+    final query = _filter.text.trim().toLowerCase();
+    final filtered = query.isEmpty
+        ? state.devices
+        : state.devices
+            .where(
+              (d) =>
+                  (d.name ?? '').toLowerCase().contains(query) ||
+                  d.deviceId.toLowerCase().contains(query),
+            )
+            .toList();
 
     final canConnect =
         state.selectedId != null &&
@@ -40,6 +72,14 @@ class BlePanel extends ConsumerWidget {
                 onPressed: () => notifier.toggleScan(),
               ),
               PanelActionButton(
+                icon: Icons.devices,
+                label: 'Connected',
+                tooltipStr: 'List devices already connected to this PC. Use when '
+                    'a device stays connected after an app restart and so does '
+                    'not appear in a scan.',
+                onPressed: () => notifier.loadSystemDevices(),
+              ),
+              PanelActionButton(
                 icon: Icons.bluetooth_connected,
                 label: 'Connect',
                 tooltipStr: 'Connect to the selected device',
@@ -51,13 +91,25 @@ class BlePanel extends ConsumerWidget {
                 tooltipStr: 'Disconnect from the connected device',
                 onPressed: state.isConnected ? () => notifier.disconnect() : null,
               ),
+              PanelActionButton(
+                icon: Icons.sync,
+                label: 'Reconnect',
+                tooltipStr: 'Drop & reconnect, re-discover services and '
+                    're-enable notifications. Use after power-cycling the board '
+                    '(Windows keeps a rebooted device "connected").',
+                onPressed: (state.isConnected || state.selectedId != null)
+                    ? () => notifier.reconnect()
+                    : null,
+              ),
             ],
           ),
         ),
         MyPanelBody(
           icon: Icons.devices,
           title: 'Discovered Devices',
-          subtitle: '${state.devices.length} found',
+          subtitle: query.isEmpty
+              ? '${state.devices.length} found'
+              : '${filtered.length} of ${state.devices.length} match',
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -77,8 +129,45 @@ class BlePanel extends ConsumerWidget {
               ),
             ],
           ),
-          child: _DeviceList(state: state, notifier: notifier),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 40,
+                child: TextField(
+                  controller: _filter,
+                  decoration: InputDecoration(
+                    labelText: 'Filter',
+                    hintText: 'Filter by name or ID…',
+                    prefixIcon: const Icon(Icons.filter_list, size: 18),
+                    suffixIcon: query.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close, size: 16),
+                            tooltip: 'Clear filter',
+                            onPressed: _filter.clear,
+                          ),
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              _DeviceList(
+                devices: filtered,
+                totalCount: state.devices.length,
+                isScanning: state.isScanning,
+                selectedId: state.selectedId,
+                connectedId: state.connectedId,
+                onSelect: notifier.select,
+              ),
+            ],
+          ),
         ),
+        // Per-characteristic GATT control + received-data view. Shares the
+        // keepAlive notifier with the Thingy:53 panel; this panel already has a
+        // device list, so its own connect controls are hidden here.
+        const BleGattControl(),
         if (state.error != null)
           MyPanelBody(
             icon: Icons.error_outline,
@@ -101,28 +190,43 @@ class BlePanel extends ConsumerWidget {
 }
 
 class _DeviceList extends StatelessWidget {
-  const _DeviceList({required this.state, required this.notifier});
+  const _DeviceList({
+    required this.devices,
+    required this.totalCount,
+    required this.isScanning,
+    required this.selectedId,
+    required this.connectedId,
+    required this.onSelect,
+  });
 
-  final BleState state;
-  final BleNotifier notifier;
+  /// Devices to show (already filtered).
+  final List<BleDevice> devices;
+
+  /// Total discovered before filtering — distinguishes "no matches" from
+  /// "nothing discovered yet".
+  final int totalCount;
+  final bool isScanning;
+  final String? selectedId;
+  final String? connectedId;
+  final void Function(String deviceId) onSelect;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    if (state.devices.isEmpty) {
-      return Text(
-        state.isScanning ? 'Scanning…' : 'No devices. Press Scan to search.',
-        style: TextStyle(fontSize: 12, color: c.muted),
-      );
+    if (devices.isEmpty) {
+      final msg = totalCount == 0
+          ? (isScanning ? 'Scanning…' : 'No devices. Press Scan to search.')
+          : 'No devices match the filter.';
+      return Text(msg, style: TextStyle(fontSize: 12, color: c.muted));
     }
     return Column(
       children: [
-        for (final d in state.devices)
+        for (final d in devices)
           _DeviceRow(
             device: d,
-            selected: d.deviceId == state.selectedId,
-            connected: d.deviceId == state.connectedId,
-            onTap: () => notifier.select(d.deviceId),
+            selected: d.deviceId == selectedId,
+            connected: d.deviceId == connectedId,
+            onTap: () => onSelect(d.deviceId),
           ),
       ],
     );

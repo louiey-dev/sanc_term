@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -14,7 +15,9 @@ import 'package:sanc_term/features/connection/providers/serial_pane_provider.dar
 import 'package:sanc_term/features/terminal/models/terminal_tab.dart';
 import 'package:sanc_term/features/terminal/providers/terminal_instances.dart';
 import 'package:sanc_term/features/terminal/providers/terminal_credentials_provider.dart';
+import 'package:sanc_term/features/panels/bluetooth/providers/ble_notifier.dart';
 import 'package:sanc_term/features/panels/common/board_command.dart';
+import 'package:sanc_term/services/ble_service.dart';
 import 'package:sanc_term/services/file_logger_service.dart';
 
 class LogPanel extends ConsumerStatefulWidget {
@@ -29,7 +32,10 @@ class _LogPanelState extends ConsumerState<LogPanel> {
   final Map<String, Pty> _ptys = {};
   final Map<String, PtyConsole> _consoles = {};
   final Set<String> _ptyStarted = {};
-  bool _isPaused = false;
+
+  /// BLE notification feeds, one per `ble`-type tab (keyed by tab id).
+  final Map<String, StreamSubscription<({String characteristicId, Uint8List value})>>
+      _bleSubs = {};
 
   @override
   void initState() {
@@ -38,7 +44,10 @@ class _LogPanelState extends ConsumerState<LogPanel> {
     _splitController = MultiSplitViewController(
       areas: [for (final t in tabs) Area(id: t.id, flex: 1)],
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) => _ensurePtys(tabs));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensurePtys(tabs);
+      _ensureBleFeeds(tabs);
+    });
   }
 
   @override
@@ -50,6 +59,9 @@ class _LogPanelState extends ConsumerState<LogPanel> {
     }
     for (final pty in _ptys.values) {
       pty.kill();
+    }
+    for (final sub in _bleSubs.values) {
+      sub.cancel();
     }
     super.dispose();
   }
@@ -74,7 +86,7 @@ class _LogPanelState extends ConsumerState<LogPanel> {
   }
 
   void _onTabsChanged(List<TerminalTab>? prev, List<TerminalTab> next) {
-    // Kill PTYs belonging to closed tabs.
+    // Kill PTYs / BLE feeds belonging to closed tabs.
     if (prev != null) {
       final removed = prev.map((t) => t.id).toSet()
         ..removeAll(next.map((t) => t.id));
@@ -86,10 +98,12 @@ class _LogPanelState extends ConsumerState<LogPanel> {
         _consoles.remove(id);
         registry.unregister(id);
         _ptyStarted.remove(id);
+        _bleSubs.remove(id)?.cancel();
       }
     }
     _syncAreas(next);
     _ensurePtys(next);
+    _ensureBleFeeds(next);
   }
 
   void _startPty(TerminalTab tab) {
@@ -112,7 +126,7 @@ class _LogPanelState extends ConsumerState<LogPanel> {
           .transform(const Utf8Decoder(allowMalformed: true))
           .listen((data) {
             console.feed(data);
-            if (!_isPaused) {
+            if (!ref.read(terminalPausedProvider)) {
               tab.terminal.write(data);
               ref.read(fileLoggerNotifierProvider.notifier).log(data);
             }
@@ -130,6 +144,110 @@ class _LogPanelState extends ConsumerState<LogPanel> {
     } catch (e) {
       tab.terminal.write('Failed to start PTY: $e\r\n');
     }
+  }
+
+  /// Attach a BLE notification feed to any `ble`-type tab that lacks one.
+  void _ensureBleFeeds(List<TerminalTab> tabs) {
+    for (final tab in tabs) {
+      if (tab.type == TerminalTabType.ble && !_bleSubs.containsKey(tab.id)) {
+        _startBleFeed(tab);
+      }
+    }
+  }
+
+  /// Streams every subscribed characteristic's notifications into [tab]'s
+  /// terminal (one line per packet) and, when logging is on, into the shared
+  /// file logger — so timestamp and save-to-file behave exactly like other panes.
+  void _startBleFeed(TerminalTab tab) {
+    // Seed the pane with the current session state so it isn't silent when
+    // opened mid-connection.
+    final st = ref.read(bleNotifierProvider);
+    if (st.isConnected) {
+      final mtu = st.mtu == null ? '' : ' · MTU ${st.mtu} (payload ${st.mtu! - 3})';
+      tab.terminal.write('--- connected$mtu ---\r\n');
+      for (final c in st.subscribed) {
+        tab.terminal.write('--- subscribed ${_bleSourceLabel(c)} ---\r\n');
+      }
+    } else {
+      tab.terminal.write(
+        'Waiting for BLE notifications… connect and subscribe to a '
+        'characteristic in a Bluetooth panel.\r\n',
+      );
+    }
+    final ble = ref.read(bleServiceProvider);
+    _bleSubs[tab.id] = ble.characteristicUpdates.listen((e) {
+      if (ref.read(terminalPausedProvider)) return;
+      final label = '[${_bleSourceLabel(e.characteristicId)}] ';
+      // Normalize newlines, then tag every line with its source so packets from
+      // different characteristics stay recognizable when interleaved.
+      final raw =
+          utf8.decode(e.value, allowMalformed: true).replaceAll('\r\n', '\n');
+      final body = raw.endsWith('\n') ? raw.substring(0, raw.length - 1) : raw;
+      final text = '${body.split('\n').map((l) => '$label$l').join('\n')}\n';
+      tab.terminal.write(text.replaceAll('\n', '\r\n'));
+      ref.read(fileLoggerNotifierProvider.notifier).log(text);
+    });
+  }
+
+  /// `service/characteristic` short-uuid tag for a value update, resolved from
+  /// the connected device's GATT tree (falls back to the characteristic alone
+  /// if it isn't found, e.g. before discovery completes).
+  String _bleSourceLabel(String charId) {
+    for (final s in ref.read(bleNotifierProvider).services) {
+      for (final ch in s.characteristics) {
+        if (ch.uuid == charId) {
+          return '${_shortUuid(s.uuid)}/${_shortUuid(ch.uuid)}';
+        }
+      }
+    }
+    return _shortUuid(charId);
+  }
+
+  static String _shortUuid(String uuid) {
+    final u = uuid.toLowerCase();
+    const base = '-0000-1000-8000-00805f9b34fb';
+    if (u.startsWith('0000') && u.endsWith(base)) {
+      return '0x${u.substring(4, 8).toUpperCase()}';
+    }
+    return u.split('-').first;
+  }
+
+  /// Emits app-side status lines (connect/disconnect, MTU, subscribe changes)
+  /// into the BLE DATA panes so the pane gives live feedback even before any
+  /// notification arrives. These are app events — not the device's console log.
+  void _onBleStateChanged(BleState? prev, BleState next) {
+    // Connection transitions.
+    if (next.connectedId != null && next.connectedId != prev?.connectedId) {
+      _bleStatus('connected');
+    } else if (next.connectedId == null && prev?.connectedId != null) {
+      _bleStatus('disconnected');
+    }
+    // MTU negotiated / changed.
+    if (next.mtu != null && next.mtu != prev?.mtu) {
+      _bleStatus('MTU ${next.mtu} (payload ${next.mtu! - 3})');
+    }
+    // Subscription changes — but skip the bulk clear that a disconnect causes.
+    if (next.connectedId != null) {
+      final prevSubs = prev?.subscribed ?? const <String>{};
+      for (final c in next.subscribed.difference(prevSubs)) {
+        _bleStatus('subscribed ${_bleSourceLabel(c)}');
+      }
+      for (final c in prevSubs.difference(next.subscribed)) {
+        _bleStatus('unsubscribed ${_bleSourceLabel(c)}');
+      }
+    }
+  }
+
+  void _bleStatus(String msg) {
+    final bleTabs = ref
+        .read(terminalTabsNotifierProvider)
+        .where((t) => t.type == TerminalTabType.ble)
+        .toList();
+    if (bleTabs.isEmpty) return;
+    for (final tab in bleTabs) {
+      tab.terminal.write('--- $msg ---\r\n');
+    }
+    ref.read(fileLoggerNotifierProvider.notifier).log('--- $msg ---\n');
   }
 
   String get _shell => Platform.isWindows
@@ -152,6 +270,7 @@ class _LogPanelState extends ConsumerState<LogPanel> {
     final tabs = ref.watch(terminalTabsNotifierProvider);
     final activeTabId = ref.watch(activeTabIdProvider) ?? tabs.firstOrNull?.id;
     ref.listen<List<TerminalTab>>(terminalTabsNotifierProvider, _onTabsChanged);
+    ref.listen<BleState>(bleNotifierProvider, _onBleStateChanged);
 
     return Container(
       decoration: BoxDecoration(
@@ -161,8 +280,11 @@ class _LogPanelState extends ConsumerState<LogPanel> {
       child: Column(
         children: [
           _Toolbar(
-            isPaused: _isPaused,
-            onPause: () => setState(() => _isPaused = !_isPaused),
+            isPaused: ref.watch(terminalPausedProvider),
+            onPause: () {
+              final notifier = ref.read(terminalPausedProvider.notifier);
+              notifier.state = !notifier.state;
+            },
           ),
           Expanded(
             child: MultiSplitViewTheme(
@@ -229,7 +351,11 @@ class _TerminalPane extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
     final isSerial = tab.type == TerminalTabType.serial;
-    final icon = isSerial ? Icons.usb_outlined : Icons.terminal;
+    final icon = switch (tab.type) {
+      TerminalTabType.serial => Icons.usb_outlined,
+      TerminalTabType.pty => Icons.terminal,
+      TerminalTabType.ble => Icons.bluetooth,
+    };
 
     // Per-pane connection status + port (serial panes only).
     SerialStatus? status;
@@ -400,9 +526,11 @@ class _Toolbar extends ConsumerWidget {
                     icon: Icon(Icons.add, size: 16, color: c.muted),
                     iconSize: 16,
                     padding: EdgeInsets.zero,
-                    onSelected: (val) => val == 'serial'
-                        ? tabsNotifier.addSerial()
-                        : tabsNotifier.addPty(),
+                    onSelected: (val) => switch (val) {
+                      'serial' => tabsNotifier.addSerial(),
+                      'ble' => tabsNotifier.addBle(),
+                      _ => tabsNotifier.addPty(),
+                    },
                     itemBuilder: (_) => [
                       PopupMenuItem(
                         value: 'serial',
@@ -428,6 +556,22 @@ class _Toolbar extends ConsumerWidget {
                             const SizedBox(width: 8),
                             Text(
                               'New PTY',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: c.foreground,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'ble',
+                        child: Row(
+                          children: [
+                            Icon(Icons.bluetooth, size: 14, color: c.muted),
+                            const SizedBox(width: 8),
+                            Text(
+                              'New Characteristic Data',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: c.foreground,

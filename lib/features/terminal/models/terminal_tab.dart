@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:xterm/xterm.dart';
 
-enum TerminalTabType { serial, pty }
+enum TerminalTabType { serial, pty, ble }
 
 class TerminalTab {
   TerminalTab({required this.id, required this.type, required this.label})
