@@ -9,6 +9,12 @@ part 'terminal_instances.g.dart';
 /// command capture keep running so nothing is actually lost on the wire.
 final terminalPausedProvider = StateProvider<bool>((ref) => false);
 
+/// Per-BLE-pane toggle for the `[service/char]` source-id tag on notification
+/// lines. On by default (matches the original behavior); turn it off to print
+/// raw notification payloads with no id prefix. Keyed by the pane's tab id.
+final bleShowSourceIdProvider =
+    StateProvider.family<bool, String>((ref, tabId) => true);
+
 @Riverpod(keepAlive: true)
 class TerminalTabsNotifier extends _$TerminalTabsNotifier {
   int _serialCount = 1;

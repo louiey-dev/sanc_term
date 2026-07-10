@@ -177,7 +177,11 @@ class _LogPanelState extends ConsumerState<LogPanel> {
     final ble = ref.read(bleServiceProvider);
     _bleSubs[tab.id] = ble.characteristicUpdates.listen((e) {
       if (ref.read(terminalPausedProvider)) return;
-      final label = '[${_bleSourceLabel(e.characteristicId)}] ';
+      // Prefix each line with its `[service/char]` source id unless the pane's
+      // ID toggle is off.
+      final label = ref.read(bleShowSourceIdProvider(tab.id))
+          ? '[${_bleSourceLabel(e.characteristicId)}] '
+          : '';
       // Normalize newlines, then tag every line with its source so packets from
       // different characteristics stay recognizable when interleaved.
       final raw =
@@ -428,6 +432,23 @@ class _TerminalPane extends ConsumerWidget {
                   ),
                 ],
                 const Spacer(),
+                if (tab.type == TerminalTabType.ble)
+                  Builder(
+                    builder: (context) {
+                      final showId =
+                          ref.watch(bleShowSourceIdProvider(tab.id));
+                      return _MiniBtn(
+                        icon: Icons.tag,
+                        tooltip: showId
+                            ? 'Hide source id in notifications'
+                            : 'Show source id in notifications',
+                        color: showId ? c.primary : c.muted,
+                        onTap: () => ref
+                            .read(bleShowSourceIdProvider(tab.id).notifier)
+                            .update((v) => !v),
+                      );
+                    },
+                  ),
                 _MiniBtn(
                   icon: Icons.delete_outline,
                   tooltip: 'Clear',

@@ -104,6 +104,7 @@ So the flow is:
 - 2026.07.10
   - add NORDIC panel
     - thingy53
+    - source id button to en/dis at log prints
 
 ## Info
 
