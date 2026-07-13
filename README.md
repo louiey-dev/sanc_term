@@ -105,6 +105,8 @@ So the flow is:
   - add NORDIC panel
     - thingy53
     - source id button to en/dis at log prints
+- 2026.07.13
+  - add GPIO control panel at NORDIC nRF/Thingy:53
 
 ## Info
 

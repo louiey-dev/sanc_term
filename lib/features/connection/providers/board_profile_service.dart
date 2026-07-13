@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:sanc_term/core/utils/my_utils.dart';
 import 'package:sanc_term/shared/models/board_profile.dart';
 
 part 'board_profile_service.g.dart';
@@ -22,11 +23,20 @@ class BoardProfilesNotifier extends _$BoardProfilesNotifier {
 
   Future<void> _load() async {
     final box = await ref.read(boardProfileBoxProvider.future);
-    state = box.values
-        .map((raw) => BoardProfile.fromJson(
-              jsonDecode(raw) as Map<String, dynamic>,
-            ))
-        .toList();
+    state = box.values.map(_tryDecode).whereType<BoardProfile>().toList();
+  }
+
+  /// Decodes one stored profile, tolerating an empty or corrupt entry (e.g. a
+  /// zero-byte write left behind by a crash mid-save) by skipping it instead of
+  /// failing the whole load.
+  BoardProfile? _tryDecode(String raw) {
+    if (raw.isEmpty) return null;
+    try {
+      return BoardProfile.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+    } catch (e) {
+      gUtils.err('Skipping corrupt board profile: $e');
+      return null;
+    }
   }
 
   Future<void> save(BoardProfile profile) async {
@@ -46,7 +56,8 @@ class BoardProfilesNotifier extends _$BoardProfilesNotifier {
     // Rewrite only the entries whose default flag actually changes, so a crash
     // mid-update can never wipe the box (unlike a clear-then-rewrite).
     for (final raw in box.values.toList()) {
-      final p = BoardProfile.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      final p = _tryDecode(raw);
+      if (p == null) continue;
       final shouldBeDefault = p.id == id;
       if (p.isDefault != shouldBeDefault) {
         await box.put(

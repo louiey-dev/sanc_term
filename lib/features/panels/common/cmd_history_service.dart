@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:sanc_term/core/utils/my_utils.dart';
 
 part 'cmd_history_service.g.dart';
 
@@ -60,8 +61,13 @@ class CmdHistoryNotifier extends _$CmdHistoryNotifier {
 
   List<String> _readList(Box<String> box, String key, List<String> fallback) {
     final raw = box.get(key);
-    if (raw == null) return List.of(fallback);
-    return (jsonDecode(raw) as List).cast<String>();
+    if (raw == null || raw.isEmpty) return List.of(fallback);
+    try {
+      return (jsonDecode(raw) as List).cast<String>();
+    } catch (e) {
+      gUtils.err('Corrupt cmd history "$key", using fallback: $e');
+      return List.of(fallback);
+    }
   }
 
   Future<void> _load() async {

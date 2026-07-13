@@ -25,12 +25,19 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
   final _name = TextEditingController(text: 'Thingy53-Sanc');
   final _custom = TextEditingController();
   final _bleCmd = TextEditingController();
+  // GPIO Control inputs.
+  final _pmicIset = TextEditingController(text: '100');
+  final _buzzFreq = TextEditingController(text: '1000');
+  final _buzzDur = TextEditingController(text: '200');
 
   @override
   void dispose() {
     _name.dispose();
     _custom.dispose();
     _bleCmd.dispose();
+    _pmicIset.dispose();
+    _buzzFreq.dispose();
+    _buzzDur.dispose();
     super.dispose();
   }
 
@@ -65,6 +72,36 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
         label: label,
         tooltipStr: 'RGB $r,$g,$b',
         onPressed: () => _send('led set_color $_ledDev $_ledIdx 3 $r $g $b'),
+      );
+
+  /// On/Off pair for an active-high enable signal `<base> 1|0`.
+  List<Widget> _enable(String label, String base) => [
+        _btn('$label On', '$base 1', '$base 1', Icons.toggle_on),
+        _btn('$label Off', '$base 0', '$base 0', Icons.toggle_off_outlined),
+      ];
+
+  /// Compact numeric input used by the PMIC/buzzer controls.
+  Widget _numField(TextEditingController c, String label, {double width = 130}) =>
+      SizedBox(
+        width: width,
+        height: 40,
+        child: TextField(
+          controller: c,
+          keyboardType: TextInputType.number,
+          style: const TextStyle(fontFamily: 'Consolas'),
+          decoration: InputDecoration(
+            labelText: label,
+            border: const OutlineInputBorder(),
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          ),
+        ),
+      );
+
+  /// Sub-heading that groups related GPIO controls within the section.
+  Widget _gpioLabel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(text, style: Theme.of(context).textTheme.titleSmall),
       );
 
   @override
@@ -127,6 +164,93 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                   Icons.light_mode),
               _btn('Off', 'led off $_ledDev $_ledIdx', 'Turn LED off',
                   Icons.dark_mode),
+            ],
+          ),
+        ),
+        MyPanelBody(
+          icon: Icons.electrical_services,
+          title: 'GPIO Control',
+          subtitle: 'FEM, PMIC, power rails, buzzer & battery '
+              '(commands shown in each tooltip)',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _gpioLabel('Front-end module (nRF21540)'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ..._enable('Mode', 'fem mode'),
+                  ..._enable('RX', 'fem rx_en'),
+                  ..._enable('TX', 'fem tx_en'),
+                  ..._enable('Sel', 'fem sel'),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _gpioLabel('Power rails'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ..._enable('3V3', 'pwr 3v3_en'),
+                  ..._enable('Sensor Pwr', 'pwr sens_pwr_ctrl'),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _gpioLabel('PMIC (nPM1100)'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _numField(_pmicIset, 'ISET (mA)'),
+                  PanelActionButton(
+                    icon: Icons.tune,
+                    label: 'Set ISET',
+                    tooltipStr: 'pmic iset <mA>',
+                    onPressed: () {
+                      final v = _pmicIset.text.trim();
+                      if (v.isNotEmpty) _send('pmic iset $v');
+                    },
+                  ),
+                  _btn('Err Status', 'pmic err', 'Read charger error (pmic err)',
+                      Icons.report_gmailerrorred),
+                  _btn('Charge Status', 'pmic chg',
+                      'Read charging status (pmic chg)',
+                      Icons.battery_charging_full),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _gpioLabel('Buzzer (PWM)'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _numField(_buzzFreq, 'Frequency (Hz)', width: 150),
+                  _numField(_buzzDur, 'Duration (ms)', width: 150),
+                  PanelActionButton(
+                    icon: Icons.volume_up,
+                    label: 'Play',
+                    tooltipStr: 'buzzer <freq> <ms>',
+                    onPressed: () {
+                      final f = _buzzFreq.text.trim();
+                      final d = _buzzDur.text.trim();
+                      if (f.isNotEmpty && d.isNotEmpty) _send('buzzer $f $d');
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _gpioLabel('Battery'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _btn('Read Battery', 'battery',
+                      'Read battery voltage / level', Icons.battery_full),
+                ],
+              ),
             ],
           ),
         ),
