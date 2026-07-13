@@ -107,6 +107,8 @@ So the flow is:
     - source id button to en/dis at log prints
 - 2026.07.13
   - add GPIO control panel at NORDIC nRF/Thingy:53
+  - add RGB LED control panel with color palette and brightness slider
+at NORDIC nRF/Thingy:53
 
 ## Info
 

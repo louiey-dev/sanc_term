@@ -22,6 +22,24 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
   static const _ledDev = 'leds';
   static const _ledIdx = '0';
 
+  // Swatches for the RGB LED PWM colour palette.
+  static const _palette = <Color>[
+    Color(0xFFFF0000), // red
+    Color(0xFFFF7F00), // orange
+    Color(0xFFFFFF00), // yellow
+    Color(0xFF7FFF00), // chartreuse
+    Color(0xFF00FF00), // green
+    Color(0xFF00FF7F), // spring green
+    Color(0xFF00FFFF), // cyan
+    Color(0xFF007FFF), // azure
+    Color(0xFF0000FF), // blue
+    Color(0xFF7F00FF), // violet
+    Color(0xFFFF00FF), // magenta
+    Color(0xFFFF007F), // rose
+    Color(0xFFFFFFFF), // white
+    Color(0xFF000000), // off
+  ];
+
   final _name = TextEditingController(text: 'Thingy53-Sanc');
   final _custom = TextEditingController();
   final _bleCmd = TextEditingController();
@@ -29,6 +47,8 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
   final _pmicIset = TextEditingController(text: '100');
   final _buzzFreq = TextEditingController(text: '1000');
   final _buzzDur = TextEditingController(text: '200');
+  // RGB LED PWM brightness (0.0–1.0) applied by the R/G/B buttons.
+  double _pwmBright = 1.0;
 
   @override
   void dispose() {
@@ -43,13 +63,17 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
 
   void _send(String cmd) => sendBoardCommand(ref, context, cmd);
 
-  PanelActionButton _btn(String label, String cmd, String tip, [IconData? icon]) =>
-      PanelActionButton(
-        icon: icon ?? Icons.bolt,
-        label: label,
-        tooltipStr: tip,
-        onPressed: () => _send(cmd),
-      );
+  PanelActionButton _btn(
+    String label,
+    String cmd,
+    String tip, [
+    IconData? icon,
+  ]) => PanelActionButton(
+    icon: icon ?? Icons.bolt,
+    label: label,
+    tooltipStr: tip,
+    onPressed: () => _send(cmd),
+  );
 
   /// A NUS control button — sends [cmd] over BLE, disabled when not connected.
   PanelActionButton _bleBtn(
@@ -58,51 +82,88 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
     String tip,
     bool connected, [
     IconData? icon,
-  ]) =>
-      PanelActionButton(
-        icon: icon ?? Icons.bluetooth,
-        label: label,
-        tooltipStr: tip,
-        onPressed: connected ? () => sendBleCommand(ref, context, cmd) : null,
-      );
+  ]) => PanelActionButton(
+    icon: icon ?? Icons.bluetooth,
+    label: label,
+    tooltipStr: tip,
+    onPressed: connected ? () => sendBleCommand(ref, context, cmd) : null,
+  );
 
   // Zephyr led shell: `led set_color <dev> <led> <n> r g b`.
-  PanelActionButton _color(String label, int r, int g, int b) => PanelActionButton(
+  PanelActionButton _color(String label, int r, int g, int b) =>
+      PanelActionButton(
         icon: Icons.circle,
         label: label,
         tooltipStr: 'RGB $r,$g,$b',
-        onPressed: () => _send('led set_color $_ledDev $_ledIdx 3 $r $g $b'),
+        onPressed: () => _send('led_pwm color $r $g $b'),
       );
+
+  /// A colour-palette swatch. Tapping sends `led_pwm color r g b <brightness>`,
+  /// where r/g/b and brightness are all floats in 0.0–1.0.
+  Widget _swatch(Color color) {
+    final r = color.r.toStringAsFixed(2);
+    final g = color.g.toStringAsFixed(2);
+    final b = color.b.toStringAsFixed(2);
+    final cmd = 'led_pwm color $r $g $b ${_pwmBright.toStringAsFixed(2)}';
+    return Tooltip(
+      message: cmd,
+      child: InkWell(
+        onTap: () => _send(cmd),
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: Colors.black26),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// A per-channel PWM button that applies the current brightness slider value:
+  /// `led_pwm <ch> <0.00–1.00>`.
+  PanelActionButton _pwmChannel(String label, String ch) => PanelActionButton(
+    icon: Icons.circle,
+    label: label,
+    tooltipStr: 'led_pwm $ch ${_pwmBright.toStringAsFixed(2)}',
+    onPressed: () => _send('led_pwm $ch ${_pwmBright.toStringAsFixed(2)}'),
+  );
 
   /// On/Off pair for an active-high enable signal `<base> 1|0`.
   List<Widget> _enable(String label, String base) => [
-        _btn('$label On', '$base 1', '$base 1', Icons.toggle_on),
-        _btn('$label Off', '$base 0', '$base 0', Icons.toggle_off_outlined),
-      ];
+    _btn('$label On', '$base 1', '$base 1', Icons.toggle_on),
+    _btn('$label Off', '$base 0', '$base 0', Icons.toggle_off_outlined),
+  ];
 
   /// Compact numeric input used by the PMIC/buzzer controls.
-  Widget _numField(TextEditingController c, String label, {double width = 130}) =>
-      SizedBox(
-        width: width,
-        height: 40,
-        child: TextField(
-          controller: c,
-          keyboardType: TextInputType.number,
-          style: const TextStyle(fontFamily: 'Consolas'),
-          decoration: InputDecoration(
-            labelText: label,
-            border: const OutlineInputBorder(),
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          ),
-        ),
-      );
+  Widget _numField(
+    TextEditingController c,
+    String label, {
+    double width = 130,
+  }) => SizedBox(
+    width: width,
+    height: 40,
+    child: TextField(
+      controller: c,
+      keyboardType: TextInputType.number,
+      style: const TextStyle(fontFamily: 'Consolas'),
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      ),
+    ),
+  );
 
   /// Sub-heading that groups related GPIO controls within the section.
   Widget _gpioLabel(String text) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(text, style: Theme.of(context).textTheme.titleSmall),
-      );
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(text, style: Theme.of(context).textTheme.titleSmall),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -127,7 +188,7 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
               _btn('Version', 'kernel version', 'Zephyr kernel version'),
               _btn('Uptime', 'kernel uptime', 'Milliseconds since boot'),
               _btn('Devices', 'device list', 'List registered devices'),
-              _btn('Reboot', 'kernel reboot cold', 'Cold reboot the SoC'),
+              _btn('Reboot', 'sys reset 1000', 'Cold reboot the SoC'),
             ],
           ),
         ),
@@ -139,38 +200,135 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _btn('BME688', 'sensor get bme688',
-                  'Temperature / humidity / pressure / gas'),
-              _btn('BMI270', 'sensor get bmi270', 'Accelerometer + gyroscope'),
-              _btn('BMM150', 'sensor get bmm150', 'Magnetometer'),
-              _btn('ADXL362', 'sensor get adxl362', 'Low-power accelerometer'),
-              _btn('BH1749', 'sensor get bh1749', 'Colour / ambient light'),
+              _btn(
+                'BME688 Init',
+                'sensor bme688 init',
+                'Temperature / humidity / pressure / gas',
+              ),
+              _btn(
+                'BME688 Read',
+                'sensor bme688 read',
+                'Temperature / humidity / pressure / gas',
+              ),
+              _btn(
+                'BMI270 Init',
+                'sensor bmi270 init',
+                'Accelerometer + gyroscope',
+              ),
+              _btn(
+                'BMI270 Read',
+                'sensor bmi270 read',
+                'Accelerometer + gyroscope',
+              ),
+              _btn('BMM150 Init', 'sensor bmm150 init', 'Magnetometer'),
+              _btn('BMM150 Read', 'sensor bmm150 read', 'Magnetometer'),
+              _btn(
+                'ADXL362 Init',
+                'sensor adxl362 init',
+                'Low-power accelerometer',
+              ),
+              _btn(
+                'ADXL362 Read',
+                'sensor adxl362 read',
+                'Low-power accelerometer',
+              ),
+              _btn(
+                'BH1749 Init',
+                'sensor bh1749 init',
+                'Colour / ambient light',
+              ),
+              _btn(
+                'BH1749 Read',
+                'sensor bh1749 read',
+                'Colour / ambient light',
+              ),
             ],
           ),
         ),
+        // MyPanelBody(
+        //   icon: Icons.lightbulb,
+        //   title: 'RGB LED',
+        //   subtitle: 'led shell — device "$_ledDev", channel $_ledIdx',
+        //   child: Wrap(
+        //     spacing: 8,
+        //     runSpacing: 8,
+        //     children: [
+        //       _color('Red', 255, 0, 0),
+        //       _color('Green', 0, 255, 0),
+        //       _color('Blue', 0, 0, 255),
+        //       _color('White', 255, 255, 255),
+        //       _btn(
+        //         'On',
+        //         'led on $_ledDev $_ledIdx',
+        //         'Turn LED on',
+        //         Icons.light_mode,
+        //       ),
+        //       _btn(
+        //         'Off',
+        //         'led off $_ledDev $_ledIdx',
+        //         'Turn LED off',
+        //         Icons.dark_mode,
+        //       ),
+        //     ],
+        //   ),
+        // ),
         MyPanelBody(
           icon: Icons.lightbulb,
-          title: 'RGB LED',
-          subtitle: 'led shell — device "$_ledDev", channel $_ledIdx',
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          title: 'RGB LED PWM',
+          subtitle: 'led_pwm — set brightness 0.0–1.0, then apply per channel',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _color('Red', 255, 0, 0),
-              _color('Green', 0, 255, 0),
-              _color('Blue', 0, 0, 255),
-              _color('White', 255, 255, 255),
-              _btn('On', 'led on $_ledDev $_ledIdx', 'Turn LED on',
-                  Icons.light_mode),
-              _btn('Off', 'led off $_ledDev $_ledIdx', 'Turn LED off',
-                  Icons.dark_mode),
+              Row(
+                children: [
+                  const Text('Brightness'),
+                  Expanded(
+                    child: Slider(
+                      value: _pwmBright,
+                      min: 0.0,
+                      max: 1.0,
+                      divisions: 100,
+                      label: _pwmBright.toStringAsFixed(2),
+                      onChanged: (v) => setState(() => _pwmBright = v),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 44,
+                    child: Text(
+                      _pwmBright.toStringAsFixed(2),
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(fontFamily: 'Consolas'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _gpioLabel('Palette (R/G/B)'),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [for (final c in _palette) _swatch(c)],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _pwmChannel('Red', 'r'),
+                  _pwmChannel('Green', 'g'),
+                  _pwmChannel('Blue', 'b'),
+                  _btn('On', 'led_pwm on', 'Turn LED on', Icons.light_mode),
+                  _btn('Off', 'led_pwm off', 'Turn LED off', Icons.dark_mode),
+                ],
+              ),
             ],
           ),
         ),
         MyPanelBody(
           icon: Icons.electrical_services,
           title: 'GPIO Control',
-          subtitle: 'FEM, PMIC, power rails, buzzer & battery '
+          subtitle:
+              'FEM, PMIC, power rails, buzzer & battery '
               '(commands shown in each tooltip)',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,11 +371,18 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                       if (v.isNotEmpty) _send('pmic iset $v');
                     },
                   ),
-                  _btn('Err Status', 'pmic err', 'Read charger error (pmic err)',
-                      Icons.report_gmailerrorred),
-                  _btn('Charge Status', 'pmic chg',
-                      'Read charging status (pmic chg)',
-                      Icons.battery_charging_full),
+                  _btn(
+                    'Err Status',
+                    'pmic err',
+                    'Read charger error (pmic err)',
+                    Icons.report_gmailerrorred,
+                  ),
+                  _btn(
+                    'Charge Status',
+                    'pmic chg',
+                    'Read charging status (pmic chg)',
+                    Icons.battery_charging_full,
+                  ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -247,8 +412,12 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _btn('Read Battery', 'battery',
-                      'Read battery voltage / level', Icons.battery_full),
+                  _btn(
+                    'Read Battery',
+                    'battery',
+                    'Read battery voltage / level',
+                    Icons.battery_full,
+                  ),
                 ],
               ),
             ],
@@ -287,8 +456,10 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                         labelText: 'Device name',
                         border: OutlineInputBorder(),
                         isDense: true,
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 8,
+                        ),
                       ),
                     ),
                   ),
@@ -324,7 +495,8 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                         ? Icons.notifications_active
                         : Icons.notifications_none,
                     label: txSubscribed ? 'TX Notifying' : 'Subscribe TX',
-                    tooltipStr: 'Enable NUS TX notifications so device responses '
+                    tooltipStr:
+                        'Enable NUS TX notifications so device responses '
                         'appear in the BLE DATA terminal and Characteristic Data',
                     onPressed: bleConnected
                         ? () {
@@ -338,14 +510,32 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                         : null,
                   ),
                   _bleBtn('Help', 'help', 'Shell help over NUS', bleConnected),
-                  _bleBtn('Uptime', 'kernel uptime', 'Milliseconds since boot',
-                      bleConnected),
-                  _bleBtn('LED On', 'led on $_ledDev $_ledIdx', 'Turn LED on',
-                      bleConnected, Icons.light_mode),
-                  _bleBtn('LED Off', 'led off $_ledDev $_ledIdx', 'Turn LED off',
-                      bleConnected, Icons.dark_mode),
-                  _bleBtn('Reboot', 'kernel reboot cold', 'Cold reboot',
-                      bleConnected),
+                  _bleBtn(
+                    'Uptime',
+                    'kernel uptime',
+                    'Milliseconds since boot',
+                    bleConnected,
+                  ),
+                  _bleBtn(
+                    'LED On',
+                    'led on $_ledDev $_ledIdx',
+                    'Turn LED on',
+                    bleConnected,
+                    Icons.light_mode,
+                  ),
+                  _bleBtn(
+                    'LED Off',
+                    'led off $_ledDev $_ledIdx',
+                    'Turn LED off',
+                    bleConnected,
+                    Icons.dark_mode,
+                  ),
+                  _bleBtn(
+                    'Reboot',
+                    'kernel reboot cold',
+                    'Cold reboot',
+                    bleConnected,
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -362,8 +552,10 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                           hintText: 'NUS command, e.g. led on leds 0',
                           border: OutlineInputBorder(),
                           isDense: true,
-                          contentPadding:
-                              EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          contentPadding: EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 8,
+                          ),
                         ),
                         onSubmitted: (cmd) {
                           if (cmd.trim().isNotEmpty) {
@@ -381,7 +573,9 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                     onPressed: bleConnected
                         ? () {
                             final cmd = _bleCmd.text.trim();
-                            if (cmd.isNotEmpty) sendBleCommand(ref, context, cmd);
+                            if (cmd.isNotEmpty) {
+                              sendBleCommand(ref, context, cmd);
+                            }
                           }
                         : null,
                   ),
@@ -406,8 +600,10 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                       hintText: 'e.g. sensor get bme688',
                       border: OutlineInputBorder(),
                       isDense: true,
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
                     ),
                     onSubmitted: (cmd) {
                       if (cmd.trim().isNotEmpty) _send(cmd);
