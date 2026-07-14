@@ -10,6 +10,9 @@ Widget buildDropdown<T>(
   double width = 100,
 }) {
   final c = context.colors;
+  final matchingCount = items.where((item) => item.value == value).length;
+  final safeValue = matchingCount == 1 ? value : null;
+
   return Container(
     height: 32,
     width: width,
@@ -21,7 +24,7 @@ Widget buildDropdown<T>(
     ),
     child: DropdownButtonHideUnderline(
       child: DropdownButton<T>(
-        value: value,
+        value: safeValue,
         hint: hint != null
             ? Text(hint, style: TextStyle(fontSize: 12, color: c.muted))
             : null,
