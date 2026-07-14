@@ -109,6 +109,8 @@ So the flow is:
   - add GPIO control panel at NORDIC nRF/Thingy:53
   - add RGB LED control panel with color palette and brightness slider
 at NORDIC nRF/Thingy:53
+- 2026.07.14
+  - add Buzzer scale buttons
 
 ## Info
 

@@ -75,6 +75,20 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
     onPressed: () => _send(cmd),
   );
 
+  PanelActionButton _scaleBtn(int index, String label) => PanelActionButton(
+    icon: Icons.music_note,
+    label: label,
+    tooltipStr: 'buzzer scale $index [duration]',
+    onPressed: () {
+      final d = _buzzDur.text.trim();
+      if (d.isNotEmpty) {
+        _send('buzzer scale $index $d');
+      } else {
+        _send('buzzer scale $index');
+      }
+    },
+  );
+
   /// A NUS control button — sends [cmd] over BLE, disabled when not connected.
   PanelActionButton _bleBtn(
     String label,
@@ -338,10 +352,10 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  ..._enable('Mode', 'fem mode'),
-                  ..._enable('RX', 'fem rx_en'),
-                  ..._enable('TX', 'fem tx_en'),
-                  ..._enable('Sel', 'fem sel'),
+                  ..._enable('Mode', 'gpio fem 0'),
+                  ..._enable('RX', 'gpio fem 1'),
+                  ..._enable('TX', 'gpio fem 2'),
+                  ..._enable('Sel', 'gpio fem 3'),
                 ],
               ),
               const SizedBox(height: 12),
@@ -350,8 +364,8 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  ..._enable('3V3', 'pwr 3v3_en'),
-                  ..._enable('Sensor Pwr', 'pwr sens_pwr_ctrl'),
+                  ..._enable('3V3', 'gpio 3v set'),
+                  ..._enable('Sensor Pwr', 'gpio sens set'),
                 ],
               ),
               const SizedBox(height: 12),
@@ -396,14 +410,41 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                   _numField(_buzzDur, 'Duration (ms)', width: 150),
                   PanelActionButton(
                     icon: Icons.volume_up,
-                    label: 'Play',
-                    tooltipStr: 'buzzer <freq> <ms>',
+                    label: 'Beep',
+                    tooltipStr: 'Play a short beep',
                     onPressed: () {
                       final f = _buzzFreq.text.trim();
                       final d = _buzzDur.text.trim();
-                      if (f.isNotEmpty && d.isNotEmpty) _send('buzzer $f $d');
+                      if (f.isNotEmpty && d.isNotEmpty) {
+                        _send('buzzer beep $f $d');
+                      }
                     },
                   ),
+                  PanelActionButton(
+                    icon: Icons.volume_up,
+                    label: 'Tone',
+                    tooltipStr: 'Play a tone at a specific frequency',
+                    onPressed: () {
+                      final f = _buzzFreq.text.trim();
+                      final d = _buzzDur.text.trim();
+                      if (f.isNotEmpty && d.isNotEmpty) _send('buzzer tone $f');
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _scaleBtn(0, 'Do'),
+                  _scaleBtn(1, 'Rae'),
+                  _scaleBtn(2, 'Mi'),
+                  _scaleBtn(3, 'Pa'),
+                  _scaleBtn(4, 'Sol'),
+                  _scaleBtn(5, 'Ra'),
+                  _scaleBtn(6, 'Si'),
+                  _scaleBtn(7, 'Do'),
                 ],
               ),
               const SizedBox(height: 12),
@@ -414,7 +455,7 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                 children: [
                   _btn(
                     'Read Battery',
-                    'battery',
+                    'adc r_mv',
                     'Read battery voltage / level',
                     Icons.battery_full,
                   ),
