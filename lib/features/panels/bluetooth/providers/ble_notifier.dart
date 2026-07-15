@@ -147,10 +147,11 @@ class BleNotifier extends _$BleNotifier {
   /// state unbounded.
   static const _maxChunks = 1000;
 
-  BleService get _ble => ref.read(bleServiceProvider);
+  late final BleService _ble;
 
   @override
   BleState build() {
+    _ble = ref.read(bleServiceProvider);
     ref.onDispose(_cleanup);
     // Track radio availability, and seed it once with the current value.
     _availSub = _ble.availabilityChanges.listen(

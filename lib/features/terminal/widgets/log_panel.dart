@@ -32,6 +32,7 @@ class _LogPanelState extends ConsumerState<LogPanel> {
   final Map<String, Pty> _ptys = {};
   final Map<String, PtyConsole> _consoles = {};
   final Set<String> _ptyStarted = {};
+  late final BoardConsoleRegistry _registry;
 
   /// BLE notification feeds, one per `ble`-type tab (keyed by tab id).
   final Map<String, StreamSubscription<({String characteristicId, Uint8List value})>>
@@ -40,6 +41,7 @@ class _LogPanelState extends ConsumerState<LogPanel> {
   @override
   void initState() {
     super.initState();
+    _registry = ref.read(boardConsoleRegistryProvider);
     final tabs = ref.read(terminalTabsNotifierProvider);
     _splitController = MultiSplitViewController(
       areas: [for (final t in tabs) Area(id: t.id, flex: 1)],
@@ -53,9 +55,8 @@ class _LogPanelState extends ConsumerState<LogPanel> {
   @override
   void dispose() {
     _splitController.dispose();
-    final registry = ref.read(boardConsoleRegistryProvider);
     for (final id in _consoles.keys) {
-      registry.unregister(id);
+      _registry.unregister(id);
     }
     for (final pty in _ptys.values) {
       pty.kill();
@@ -86,17 +87,17 @@ class _LogPanelState extends ConsumerState<LogPanel> {
   }
 
   void _onTabsChanged(List<TerminalTab>? prev, List<TerminalTab> next) {
+    if (!mounted) return;
     // Kill PTYs / BLE feeds belonging to closed tabs.
     if (prev != null) {
       final removed = prev.map((t) => t.id).toSet()
         ..removeAll(next.map((t) => t.id));
-      final registry = ref.read(boardConsoleRegistryProvider);
       for (final id in removed) {
         _ptys[id]?.kill();
         _ptys.remove(id);
         _consoles[id]?.markClosed();
         _consoles.remove(id);
-        registry.unregister(id);
+        _registry.unregister(id);
         _ptyStarted.remove(id);
         _bleSubs.remove(id)?.cancel();
       }
@@ -119,7 +120,7 @@ class _LogPanelState extends ConsumerState<LogPanel> {
       _ptys[tab.id] = pty;
       final console = PtyConsole(id: tab.id, pty: pty);
       _consoles[tab.id] = console;
-      ref.read(boardConsoleRegistryProvider).register(console);
+      _registry.register(console);
 
       pty.output
           .cast<List<int>>()
@@ -220,6 +221,7 @@ class _LogPanelState extends ConsumerState<LogPanel> {
   /// into the BLE DATA panes so the pane gives live feedback even before any
   /// notification arrives. These are app events — not the device's console log.
   void _onBleStateChanged(BleState? prev, BleState next) {
+    if (!mounted) return;
     // Connection transitions.
     if (next.connectedId != null && next.connectedId != prev?.connectedId) {
       _bleStatus('connected');

@@ -40,6 +40,7 @@ import 'package:sanc_term/features/panels/rockchip/rc_storage.dart';
 import 'package:sanc_term/features/panels/rockchip/rc_uart.dart';
 import 'package:sanc_term/features/panels/rockchip/rc_usb.dart';
 import 'package:sanc_term/features/panels/voice/odv_default.dart';
+import 'package:sanc_term/features/panels/lte/lte_module.dart';
 
 const panelGroups = [
   PanelGroup(
@@ -395,4 +396,6 @@ final Map<String, Widget Function()> _realPanels = {
   'odv_default': () => const OnDeviceVoicePanel(),
   // Bluetooth LE
   'ble_panel': () => const BlePanel(),
+  // LTE Module
+  'lte_module': () => const LteModulePanel(),
 };

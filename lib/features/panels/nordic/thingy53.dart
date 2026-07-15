@@ -103,14 +103,7 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
     onPressed: connected ? () => sendBleCommand(ref, context, cmd) : null,
   );
 
-  // Zephyr led shell: `led set_color <dev> <led> <n> r g b`.
-  PanelActionButton _color(String label, int r, int g, int b) =>
-      PanelActionButton(
-        icon: Icons.circle,
-        label: label,
-        tooltipStr: 'RGB $r,$g,$b',
-        onPressed: () => _send('led_pwm color $r $g $b'),
-      );
+
 
   /// A colour-palette swatch. Tapping sends `led_pwm color r g b <brightness>`,
   /// where r/g/b and brightness are all floats in 0.0–1.0.
