@@ -9,6 +9,7 @@ import 'package:sanc_term/shared/widgets/common.dart';
 import 'package:sanc_term/shared/widgets/panel.dart';
 
 final gBleCmd = TextEditingController();
+String gBleSendMode = 'text';
 
 /// Nordic Thingy:53 (nRF5340) test & control panel. Exercises the EVM's
 /// sensors, RGB LED, buzzer and BLE stack through the Zephyr shell over the
@@ -54,7 +55,6 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
   final _buzzDur = TextEditingController(text: '200');
   // RGB LED PWM brightness (0.0–1.0) applied by the R/G/B buttons.
   double _pwmBright = 1.0;
-  String _bleSendMode = 'text';
 
   @override
   void dispose() {
@@ -528,51 +528,114 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  PanelActionButton(
-                    icon: txSubscribed
-                        ? Icons.notifications_active
-                        : Icons.notifications_none,
-                    label: txSubscribed ? 'TX Notifying' : 'Subscribe TX',
-                    tooltipStr:
-                        'Enable NUS TX notifications so device responses '
-                        'appear in the BLE DATA terminal and Characteristic Data',
-                    onPressed: bleConnected
-                        ? () {
-                            final n = ref.read(bleNotifierProvider.notifier);
-                            if (txSubscribed) {
-                              n.unsubscribeChar(NusUuids.service, NusUuids.tx);
-                            } else {
-                              n.subscribeChar(NusUuids.service, NusUuids.tx);
-                            }
-                          }
-                        : null,
+                  Row(
+                    spacing: 8,
+                    children: [
+                      PanelActionButton(
+                        icon: txSubscribed
+                            ? Icons.notifications_active
+                            : Icons.notifications_none,
+                        label: txSubscribed ? 'TX Notifying' : 'Subscribe TX',
+                        tooltipStr:
+                            'Enable NUS TX notifications so device responses '
+                            'appear in the BLE DATA terminal and Characteristic Data',
+                        onPressed: bleConnected
+                            ? () {
+                                final n = ref.read(
+                                  bleNotifierProvider.notifier,
+                                );
+                                if (txSubscribed) {
+                                  n.unsubscribeChar(
+                                    NusUuids.service,
+                                    NusUuids.tx,
+                                  );
+                                } else {
+                                  n.subscribeChar(
+                                    NusUuids.service,
+                                    NusUuids.tx,
+                                  );
+                                }
+                              }
+                            : null,
+                      ),
+                      _bleBtn(
+                        'Help',
+                        'help',
+                        'Shell help over NUS',
+                        bleConnected,
+                      ),
+                      _bleBtn(
+                        'Uptime',
+                        'kernel uptime',
+                        'Milliseconds since boot',
+                        bleConnected,
+                      ),
+                      _bleBtn(
+                        'LED On',
+                        'led on $_ledDev $_ledIdx',
+                        'Turn LED on',
+                        bleConnected,
+                        Icons.light_mode,
+                      ),
+                      _bleBtn(
+                        'LED Off',
+                        'led off $_ledDev $_ledIdx',
+                        'Turn LED off',
+                        bleConnected,
+                        Icons.dark_mode,
+                      ),
+                      _bleBtn(
+                        'Reboot',
+                        'kernel reboot cold',
+                        'Cold reboot',
+                        bleConnected,
+                      ),
+                    ],
                   ),
-                  _bleBtn('Help', 'help', 'Shell help over NUS', bleConnected),
-                  _bleBtn(
-                    'Uptime',
-                    'kernel uptime',
-                    'Milliseconds since boot',
-                    bleConnected,
-                  ),
-                  _bleBtn(
-                    'LED On',
-                    'led on $_ledDev $_ledIdx',
-                    'Turn LED on',
-                    bleConnected,
-                    Icons.light_mode,
-                  ),
-                  _bleBtn(
-                    'LED Off',
-                    'led off $_ledDev $_ledIdx',
-                    'Turn LED off',
-                    bleConnected,
-                    Icons.dark_mode,
-                  ),
-                  _bleBtn(
-                    'Reboot',
-                    'kernel reboot cold',
-                    'Cold reboot',
-                    bleConnected,
+                  Row(
+                    spacing: 8,
+                    children: [
+                      PanelActionButton(
+                        icon: Icons.info_outline,
+                        label: 'ver',
+                        tooltipStr: 'read FW version string',
+                        onPressed: bleConnected
+                            ? () {
+                                _handleBleSend('a5 5a 07 01 10 00 00 00');
+                              }
+                            : null,
+                      ),
+                      PanelActionButton(
+                        icon: Icons.start_outlined,
+                        label: 'sensor init',
+                        tooltipStr: 'Initialize sensors',
+                        onPressed: bleConnected
+                            ? () {
+                                _handleBleSend('a5 5a 08 01 14 01 00 00');
+                              }
+                            : null,
+                      ),
+                      PanelActionButton(
+                        icon: Icons.tv_outlined,
+                        label: 'SM on',
+                        tooltipStr: 'Start state machine',
+                        onPressed: bleConnected
+                            ? () {
+                                _handleBleSend('a5 5a 09 01 16 01 01 00 00');
+                              }
+                            : null,
+                      ),
+                      PanelActionButton(
+                        icon: Icons.tv_off_outlined,
+                        label: 'SM off',
+                        tooltipStr: 'Stop state machine',
+                        onPressed: bleConnected
+                            ? () {
+                                _handleBleSend('a5 5a 09 01 16 01 00 00 00');
+                              }
+                            : null,
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -581,7 +644,7 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                 children: [
                   buildDropdown<String>(
                     context,
-                    value: _bleSendMode,
+                    value: gBleSendMode,
                     items: const [
                       DropdownMenuItem(value: 'text', child: Text('Text')),
                       DropdownMenuItem(value: 'hex', child: Text('Hex')),
@@ -589,7 +652,7 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                     onChanged: bleConnected
                         ? (v) {
                             if (v != null) {
-                              setState(() => _bleSendMode = v);
+                              setState(() => gBleSendMode = v);
                             }
                           }
                         : null,
@@ -607,7 +670,7 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                           fontFamily: 'Consolas',
                         ),
                         decoration: InputDecoration(
-                          hintText: _bleSendMode == 'text'
+                          hintText: gBleSendMode == 'text'
                               ? 'NUS command, e.g. led on leds 0'
                               : 'Hex bytes, e.g. 00 11 22 or 0xAA 0xBB',
                           border: const OutlineInputBorder(),
@@ -684,7 +747,7 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
   }
 
   void _handleBleSend(String raw) {
-    if (_bleSendMode == 'text') {
+    if (gBleSendMode == 'text') {
       final cmd = raw.trim();
       if (cmd.isNotEmpty) {
         sendBleCommand(ref, context, cmd);

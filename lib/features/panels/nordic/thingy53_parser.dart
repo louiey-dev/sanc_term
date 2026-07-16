@@ -231,11 +231,17 @@ class Thingy53Parser {
 }
 
 enum MsgId {
-  msgGetVer(0x01),
-  msgResVer(0x02),
-  msgGetStats(0x03),
-  msgResStats(0x04),
-  msgMax(0x05);
+  msgGetVer(0x10),
+  msgResVer(0x11),
+  msgGetStats(0x12),
+  msgResStats(0x13),
+  msgSetSensorInit(0x14),
+  msgResSensorInit(0x15),
+  msgSetTelemetry(0x16),
+  msgResTelemetry(0x17),
+  msgSetSmDuration(0x18),
+  msgResSmDuration(0x19),
+  msgMax(0x1A);
 
   final int value;
   const MsgId(this.value);
