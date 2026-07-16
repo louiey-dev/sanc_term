@@ -15,7 +15,7 @@ void sendBoardCommand(
 }) {
   final console = pickBoardConsole(ref);
   if (console == null) {
-    gUtils.showErrorSnackbar(context, 'No connected serial or PTY/SSH pane');
+    myUtils.showErrorSnackbar(context, 'No connected serial or PTY/SSH pane');
     return;
   }
   console.send('${command.trimRight()}$terminator');

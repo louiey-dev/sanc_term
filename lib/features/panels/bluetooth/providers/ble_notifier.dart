@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:sanc_term/features/panels/bluetooth/ble_command.dart';
+import 'package:sanc_term/features/panels/nordic/thingy53_parser.dart';
 import 'package:sanc_term/services/ble_service.dart';
 
 part 'ble_notifier.g.dart';
@@ -31,6 +33,7 @@ class BleState {
     this.selectedChar,
     this.mtu,
     this.error,
+    this.telemetry,
   });
 
   final BleScanStatus scanStatus;
@@ -68,6 +71,7 @@ class BleState {
   /// or null until requested/queried. Reset on (re)connect.
   final int? mtu;
   final String? error;
+  final Thingy53Telemetry? telemetry;
 
   bool get isScanning => scanStatus == BleScanStatus.scanning;
   bool get isConnected => connectedId != null;
@@ -101,6 +105,7 @@ class BleState {
     Object? selectedChar = _unset,
     Object? mtu = _unset,
     Object? error = _unset,
+    Object? telemetry = _unset,
   }) {
     return BleState(
       scanStatus: scanStatus ?? this.scanStatus,
@@ -108,8 +113,9 @@ class BleState {
       availability: identical(availability, _unset)
           ? this.availability
           : availability as BleAvailability?,
-      selectedId:
-          identical(selectedId, _unset) ? this.selectedId : selectedId as String?,
+      selectedId: identical(selectedId, _unset)
+          ? this.selectedId
+          : selectedId as String?,
       connectedId: identical(connectedId, _unset)
           ? this.connectedId
           : connectedId as String?,
@@ -123,6 +129,9 @@ class BleState {
           : selectedChar as String?,
       mtu: identical(mtu, _unset) ? this.mtu : mtu as int?,
       error: identical(error, _unset) ? this.error : error as String?,
+      telemetry: identical(telemetry, _unset)
+          ? this.telemetry
+          : telemetry as Thingy53Telemetry?,
     );
   }
 }
@@ -160,9 +169,20 @@ class BleNotifier extends _$BleNotifier {
     // Route every GATT value update into the per-characteristic buffers. The
     // service's stream is broadcast and always live, so this stays attached for
     // the notifier's lifetime.
-    _valuesSub = _ble.characteristicUpdates.listen(
-      (e) => _onRx(e.characteristicId, e.value),
-    );
+    _valuesSub = _ble.characteristicUpdates.listen((e) {
+      if (e.characteristicId == NusUuids.tx) {
+        final bytes = e.value;
+        if (bytes.length >= 2 && bytes[0] == 0xA5 && bytes[1] == 0x5A) {
+          // byte array message
+          Thingy53Parser.parseByteArray(bytes);
+        } else {
+          // string data or json
+          final parsed = Thingy53Parser.parse(e.value);
+          state = state.copyWith(telemetry: parsed);
+        }
+      }
+      _onRx(e.characteristicId, e.value);
+    });
     _seedAvailability();
     return const BleState();
   }
@@ -269,6 +289,7 @@ class BleNotifier extends _$BleNotifier {
       selectedChar: null,
       mtu: null,
       error: null,
+      telemetry: null,
     );
     // Watch the connection so an unexpected drop clears our state too.
     _connSub?.cancel();
@@ -279,6 +300,7 @@ class BleNotifier extends _$BleNotifier {
           connecting: false,
           services: const [],
           subscribed: const {},
+          telemetry: null,
         );
       } else {
         state = state.copyWith(connectedId: id, connecting: false);
@@ -359,7 +381,8 @@ class BleNotifier extends _$BleNotifier {
     if (id == null || state.subscribed.contains(charUuid)) return;
     // Prefer notify; fall back to indicate for indicate-only characteristics.
     final ch = _findChar(serviceUuid, charUuid);
-    final indicate = ch != null &&
+    final indicate =
+        ch != null &&
         !ch.properties.contains(BleCharProperty.notify) &&
         ch.properties.contains(BleCharProperty.indicate);
     try {
@@ -412,12 +435,18 @@ class BleNotifier extends _$BleNotifier {
     final id = state.connectedId;
     if (id == null) return;
     final ch = _findChar(serviceUuid, charUuid);
-    final withoutResponse = ch != null &&
+    final withoutResponse =
+        ch != null &&
         !ch.properties.contains(BleCharProperty.write) &&
         ch.properties.contains(BleCharProperty.writeWithoutResponse);
     try {
-      await _ble.write(id, serviceUuid, charUuid, value,
-          withoutResponse: withoutResponse);
+      await _ble.write(
+        id,
+        serviceUuid,
+        charUuid,
+        value,
+        withoutResponse: withoutResponse,
+      );
     } catch (e) {
       state = state.copyWith(error: 'Write failed: $e');
     }
@@ -473,6 +502,7 @@ class BleNotifier extends _$BleNotifier {
       connecting: false,
       services: const [],
       subscribed: const {},
+      telemetry: null,
     );
   }
 

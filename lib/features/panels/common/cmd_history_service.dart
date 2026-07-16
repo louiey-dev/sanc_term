@@ -65,7 +65,7 @@ class CmdHistoryNotifier extends _$CmdHistoryNotifier {
     try {
       return (jsonDecode(raw) as List).cast<String>();
     } catch (e) {
-      gUtils.err('Corrupt cmd history "$key", using fallback: $e');
+      myUtils.err('Corrupt cmd history "$key", using fallback: $e');
       return List.of(fallback);
     }
   }

@@ -1,9 +1,14 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sanc_term/core/utils/my_utils.dart';
 import 'package:sanc_term/features/panels/bluetooth/ble_command.dart';
 import 'package:sanc_term/features/panels/bluetooth/providers/ble_notifier.dart';
 import 'package:sanc_term/features/panels/common/board_command.dart';
+import 'package:sanc_term/shared/widgets/common.dart';
 import 'package:sanc_term/shared/widgets/panel.dart';
+
+final gBleCmd = TextEditingController();
 
 /// Nordic Thingy:53 (nRF5340) test & control panel. Exercises the EVM's
 /// sensors, RGB LED, buzzer and BLE stack through the Zephyr shell over the
@@ -42,19 +47,20 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
 
   final _name = TextEditingController(text: 'Thingy53-Sanc');
   final _custom = TextEditingController();
-  final _bleCmd = TextEditingController();
+
   // GPIO Control inputs.
   final _pmicIset = TextEditingController(text: '100');
   final _buzzFreq = TextEditingController(text: '1000');
   final _buzzDur = TextEditingController(text: '200');
   // RGB LED PWM brightness (0.0–1.0) applied by the R/G/B buttons.
   double _pwmBright = 1.0;
+  String _bleSendMode = 'text';
 
   @override
   void dispose() {
     _name.dispose();
     _custom.dispose();
-    _bleCmd.dispose();
+    // gBleCmd.dispose();
     _pmicIset.dispose();
     _buzzFreq.dispose();
     _buzzDur.dispose();
@@ -102,8 +108,6 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
     tooltipStr: tip,
     onPressed: connected ? () => sendBleCommand(ref, context, cmd) : null,
   );
-
-
 
   /// A colour-palette swatch. Tapping sends `led_pwm color r g b <brightness>`,
   /// where r/g/b and brightness are all floats in 0.0–1.0.
@@ -575,26 +579,46 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
               const SizedBox(height: 10),
               Row(
                 children: [
+                  buildDropdown<String>(
+                    context,
+                    value: _bleSendMode,
+                    items: const [
+                      DropdownMenuItem(value: 'text', child: Text('Text')),
+                      DropdownMenuItem(value: 'hex', child: Text('Hex')),
+                    ],
+                    onChanged: bleConnected
+                        ? (v) {
+                            if (v != null) {
+                              setState(() => _bleSendMode = v);
+                            }
+                          }
+                        : null,
+                    width: 75,
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: SizedBox(
-                      height: 40,
+                      height: 32,
                       child: TextField(
-                        controller: _bleCmd,
+                        controller: gBleCmd,
                         enabled: bleConnected,
-                        style: const TextStyle(fontFamily: 'Consolas'),
-                        decoration: const InputDecoration(
-                          hintText: 'NUS command, e.g. led on leds 0',
-                          border: OutlineInputBorder(),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontFamily: 'Consolas',
+                        ),
+                        decoration: InputDecoration(
+                          hintText: _bleSendMode == 'text'
+                              ? 'NUS command, e.g. led on leds 0'
+                              : 'Hex bytes, e.g. 00 11 22 or 0xAA 0xBB',
+                          border: const OutlineInputBorder(),
                           isDense: true,
-                          contentPadding: EdgeInsets.symmetric(
+                          contentPadding: const EdgeInsets.symmetric(
                             horizontal: 8,
                             vertical: 8,
                           ),
                         ),
                         onSubmitted: (cmd) {
-                          if (cmd.trim().isNotEmpty) {
-                            sendBleCommand(ref, context, cmd);
-                          }
+                          _handleBleSend(cmd);
                         },
                       ),
                     ),
@@ -603,13 +627,10 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                   PanelActionButton(
                     icon: Icons.send,
                     label: 'Send',
-                    tooltipStr: 'Write the command to NUS RX',
+                    tooltipStr: 'Write to NUS RX',
                     onPressed: bleConnected
                         ? () {
-                            final cmd = _bleCmd.text.trim();
-                            if (cmd.isNotEmpty) {
-                              sendBleCommand(ref, context, cmd);
-                            }
+                            _handleBleSend(gBleCmd.text);
                           }
                         : null,
                   ),
@@ -660,5 +681,46 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
         ),
       ],
     );
+  }
+
+  void _handleBleSend(String raw) {
+    if (_bleSendMode == 'text') {
+      final cmd = raw.trim();
+      if (cmd.isNotEmpty) {
+        sendBleCommand(ref, context, cmd);
+      }
+    } else {
+      final cleanRaw = raw.trim();
+      if (cleanRaw.isEmpty) return;
+      final bytes = _parseHexString(cleanRaw);
+      if (bytes == null) {
+        myUtils.showErrorSnackbar(context, 'Invalid hex string format');
+        return;
+      }
+      sendBleWrite(ref, context, NusUuids.service, NusUuids.rx, bytes);
+    }
+  }
+
+  Uint8List? _parseHexString(String hex) {
+    final clean = hex
+        .replaceAll(RegExp(r'0[xX]'), '')
+        .replaceAll(RegExp(r'[\s,;\-\\:\x00]'), '');
+
+    if (clean.isEmpty) return Uint8List(0);
+    if (clean.length % 2 != 0) {
+      return null;
+    }
+
+    try {
+      final bytes = Uint8List(clean.length ~/ 2);
+      for (var i = 0; i < clean.length; i += 2) {
+        final hexChar = clean.substring(i, i + 2);
+        final byte = int.parse(hexChar, radix: 16);
+        bytes[i ~/ 2] = byte;
+      }
+      return bytes;
+    } catch (_) {
+      return null;
+    }
   }
 }

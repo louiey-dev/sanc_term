@@ -29,7 +29,7 @@ final effectiveActiveSerialTabIdProvider =
 // ignore: unused_element
 typedef EffectiveActiveSerialTabIdRef = AutoDisposeProviderRef<String?>;
 String _$serialPaneNotifierHash() =>
-    r'3fee8b90d697100d8bbd189c6f5117ea7d161680';
+    r'8584f1977bff0efb5e00a104bdd0c474f807432b';
 
 /// Copied from Dart SDK
 class _SystemHash {

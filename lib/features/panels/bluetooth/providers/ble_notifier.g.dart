@@ -6,7 +6,7 @@ part of 'ble_notifier.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$bleNotifierHash() => r'fc601c986eaf747f702335b8eb26089c4b9e8577';
+String _$bleNotifierHash() => r'323a4207e14b232a0b1fdfcc126ec55d0843cd1d';
 
 /// See also [BleNotifier].
 @ProviderFor(BleNotifier)

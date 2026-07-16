@@ -7,6 +7,8 @@ import '../../../shared/widgets/panel.dart';
 import 'providers/ble_notifier.dart';
 import 'widgets/ble_gatt_control.dart';
 
+final scanFilter = TextEditingController();
+
 class BlePanel extends ConsumerStatefulWidget {
   const BlePanel({super.key});
 
@@ -15,18 +17,16 @@ class BlePanel extends ConsumerStatefulWidget {
 }
 
 class _BlePanelState extends ConsumerState<BlePanel> {
-  final _filter = TextEditingController();
-
   @override
   void initState() {
     super.initState();
     // Re-filter the list as the query changes.
-    _filter.addListener(() => setState(() {}));
+    scanFilter.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
-    _filter.dispose();
+    // scanFilter.dispose();
     super.dispose();
   }
 
@@ -35,16 +35,16 @@ class _BlePanelState extends ConsumerState<BlePanel> {
     final state = ref.watch(bleNotifierProvider);
     final notifier = ref.read(bleNotifierProvider.notifier);
 
-    final query = _filter.text.trim().toLowerCase();
+    final query = scanFilter.text.trim().toLowerCase();
     final filtered = query.isEmpty
         ? state.devices
         : state.devices
-            .where(
-              (d) =>
-                  (d.name ?? '').toLowerCase().contains(query) ||
-                  d.deviceId.toLowerCase().contains(query),
-            )
-            .toList();
+              .where(
+                (d) =>
+                    (d.name ?? '').toLowerCase().contains(query) ||
+                    d.deviceId.toLowerCase().contains(query),
+              )
+              .toList();
 
     final canConnect =
         state.selectedId != null &&
@@ -74,7 +74,8 @@ class _BlePanelState extends ConsumerState<BlePanel> {
               PanelActionButton(
                 icon: Icons.devices,
                 label: 'Connected',
-                tooltipStr: 'List devices already connected to this PC. Use when '
+                tooltipStr:
+                    'List devices already connected to this PC. Use when '
                     'a device stays connected after an app restart and so does '
                     'not appear in a scan.',
                 onPressed: () => notifier.loadSystemDevices(),
@@ -89,12 +90,15 @@ class _BlePanelState extends ConsumerState<BlePanel> {
                 icon: Icons.bluetooth_disabled,
                 label: 'Disconnect',
                 tooltipStr: 'Disconnect from the connected device',
-                onPressed: state.isConnected ? () => notifier.disconnect() : null,
+                onPressed: state.isConnected
+                    ? () => notifier.disconnect()
+                    : null,
               ),
               PanelActionButton(
                 icon: Icons.sync,
                 label: 'Reconnect',
-                tooltipStr: 'Drop & reconnect, re-discover services and '
+                tooltipStr:
+                    'Drop & reconnect, re-discover services and '
                     're-enable notifications. Use after power-cycling the board '
                     '(Windows keeps a rebooted device "connected").',
                 onPressed: (state.isConnected || state.selectedId != null)
@@ -135,7 +139,7 @@ class _BlePanelState extends ConsumerState<BlePanel> {
               SizedBox(
                 height: 40,
                 child: TextField(
-                  controller: _filter,
+                  controller: scanFilter,
                   decoration: InputDecoration(
                     labelText: 'Filter',
                     hintText: 'Filter by name or ID…',
@@ -145,7 +149,7 @@ class _BlePanelState extends ConsumerState<BlePanel> {
                         : IconButton(
                             icon: const Icon(Icons.close, size: 16),
                             tooltip: 'Clear filter',
-                            onPressed: _filter.clear,
+                            onPressed: scanFilter.clear,
                           ),
                     border: const OutlineInputBorder(),
                     isDense: true,
@@ -249,7 +253,9 @@ class _DeviceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final name = (device.name?.isNotEmpty ?? false) ? device.name! : '(unnamed)';
+    final name = (device.name?.isNotEmpty ?? false)
+        ? device.name!
+        : '(unnamed)';
     final rssi = device.rssi;
     return InkWell(
       onTap: onTap,
@@ -258,7 +264,9 @@ class _DeviceRow extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? c.primary.withValues(alpha: 0.12) : Colors.transparent,
+          color: selected
+              ? c.primary.withValues(alpha: 0.12)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
           border: Border.all(color: selected ? c.primary : c.border),
         ),
@@ -298,10 +306,7 @@ class _DeviceRow extends StatelessWidget {
                 ),
               ),
             if (rssi != null)
-              Text(
-                '$rssi dBm',
-                style: TextStyle(fontSize: 10, color: c.muted),
-              ),
+              Text('$rssi dBm', style: TextStyle(fontSize: 10, color: c.muted)),
           ],
         ),
       ),

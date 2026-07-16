@@ -7,7 +7,7 @@ part of 'terminal_instances.dart';
 // **************************************************************************
 
 String _$terminalTabsNotifierHash() =>
-    r'76b810921dc7880d3694f6a5dab20cc38dc88d84';
+    r'3a5b2f112d53775a54a0719bc7ac899c73bd56b3';
 
 /// See also [TerminalTabsNotifier].
 @ProviderFor(TerminalTabsNotifier)

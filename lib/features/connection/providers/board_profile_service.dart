@@ -34,7 +34,7 @@ class BoardProfilesNotifier extends _$BoardProfilesNotifier {
     try {
       return BoardProfile.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     } catch (e) {
-      gUtils.err('Skipping corrupt board profile: $e');
+      myUtils.err('Skipping corrupt board profile: $e');
       return null;
     }
   }

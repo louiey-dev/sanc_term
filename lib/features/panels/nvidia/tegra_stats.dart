@@ -23,6 +23,8 @@ class TegraStatsData {
   final String emcFreq;
   final Map<String, String> temps;
   final Map<String, String> power;
+  final int storageUsed;
+  final int storageTotal;
 
   const TegraStatsData({
     required this.ramUsed,
@@ -35,7 +37,39 @@ class TegraStatsData {
     required this.emcFreq,
     required this.temps,
     required this.power,
+    this.storageUsed = 0,
+    this.storageTotal = 0,
   });
+
+  TegraStatsData copyWith({
+    int? ramUsed,
+    int? ramTotal,
+    int? swapUsed,
+    int? swapTotal,
+    List<TegraStatsCpuCore>? cpus,
+    int? gpuLoadPct,
+    String? gpuFreq,
+    String? emcFreq,
+    Map<String, String>? temps,
+    Map<String, String>? power,
+    int? storageUsed,
+    int? storageTotal,
+  }) {
+    return TegraStatsData(
+      ramUsed: ramUsed ?? this.ramUsed,
+      ramTotal: ramTotal ?? this.ramTotal,
+      swapUsed: swapUsed ?? this.swapUsed,
+      swapTotal: swapTotal ?? this.swapTotal,
+      cpus: cpus ?? this.cpus,
+      gpuLoadPct: gpuLoadPct ?? this.gpuLoadPct,
+      gpuFreq: gpuFreq ?? this.gpuFreq,
+      emcFreq: emcFreq ?? this.emcFreq,
+      temps: temps ?? this.temps,
+      power: power ?? this.power,
+      storageUsed: storageUsed ?? this.storageUsed,
+      storageTotal: storageTotal ?? this.storageTotal,
+    );
+  }
 }
 
 /// One point in time, reduced to the four metrics the live plot graphs.
@@ -148,6 +182,12 @@ Map<String, dynamic> tegraTelemetry(TegraStatsData s) {
     'pwr_gpu_mw': powerFor('gpu'),
     'pwr_soc_mw': powerFor('soc'),
     'pwr_total_mw': totalRail ?? powerSum,
+    'ram_used_mb': s.ramUsed,
+    'ram_total_mb': s.ramTotal,
+    'swap_used_mb': s.swapUsed,
+    'swap_total_mb': s.swapTotal,
+    'storage_used_mb': s.storageUsed,
+    'storage_total_mb': s.storageTotal,
   };
   return parsedData;
 }
@@ -241,27 +281,42 @@ TegraStatsData? parseTegraStats(String line) {
 /// RAM-only fragment (produced when a serial console wraps mid-sample) must not
 /// win, or the wrapped remainder gets discarded and every metric reads null.
 TegraStatsData? parseTegraStatsBlock(String text) {
+  int storageTotal = 0;
+  int storageUsed = 0;
+  final storageM = RegExp(r'STORAGE:\s+\S+\s+(\d+)\s+(\d+)').firstMatch(text);
+  if (storageM != null) {
+    storageTotal = int.tryParse(storageM.group(1)!) ?? 0;
+    storageUsed = int.tryParse(storageM.group(2)!) ?? 0;
+  }
+
   // Fast path: a clean capture where each sample is its own line (PTY/SSH).
   TegraStatsData? last;
   for (final line in text.split('\n')) {
     final parsed = parseTegraStats(line);
     if (parsed != null && parsed.cpus.isNotEmpty) last = parsed;
   }
-  if (last != null) return last;
-
-  // Fallback: some serial consoles hard-wrap the long tegrastats line across
-  // several physical lines, duplicating the character at each wrap boundary
-  // (e.g. `CPU [0%@` + `@729,…`). Rejoin the fragments, then re-split at each
-  // `RAM …MB` so multiple wrapped samples in one capture don't bleed into each
-  // other, and keep the last complete one. Only reached when no whole line
-  // parsed on its own, so clean output is never disturbed.
-  final unwrapped = _unwrapLine(text);
-  for (final chunk in unwrapped.split(RegExp(r'(?=RAM\s+\d+/\d+MB)'))) {
-    final parsed = parseTegraStats(chunk);
-    if (parsed != null && parsed.cpus.isNotEmpty) last = parsed;
+  if (last == null) {
+    // Fallback: some serial consoles hard-wrap the long tegrastats line across
+    // several physical lines, duplicating the character at each wrap boundary
+    // (e.g. `CPU [0%@` + `@729,…`). Rejoin the fragments, then re-split at each
+    // `RAM …MB` so multiple wrapped samples in one capture don't bleed into each
+    // other, and keep the last complete one. Only reached when no whole line
+    // parsed on its own, so clean output is never disturbed.
+    final unwrapped = _unwrapLine(text);
+    for (final chunk in unwrapped.split(RegExp(r'(?=RAM\s+\d+/\d+MB)'))) {
+      final parsed = parseTegraStats(chunk);
+      if (parsed != null && parsed.cpus.isNotEmpty) last = parsed;
+    }
+    last ??= parseTegraStats(unwrapped);
   }
-  // Last resort: parse the whole rejoined line even if cores are missing.
-  return last ?? parseTegraStats(unwrapped);
+
+  if (last != null) {
+    return last.copyWith(
+      storageTotal: storageTotal,
+      storageUsed: storageUsed,
+    );
+  }
+  return null;
 }
 
 /// Rejoins a serial-wrapped capture into one line, dropping the character a

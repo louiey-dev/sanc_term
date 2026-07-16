@@ -89,7 +89,7 @@ class _InfoBlockState extends ConsumerState<_InfoBlock> {
         _isWarning = true;
         _status = 'No connected PTY/SSH or serial pane — connect one first.';
       });
-      gUtils.showErrorSnackbar(context, 'No connected console to read from');
+      myUtils.showErrorSnackbar(context, 'No connected console to read from');
       return;
     }
 
@@ -118,7 +118,7 @@ class _InfoBlockState extends ConsumerState<_InfoBlock> {
         _isWarning = true;
         _status = 'Read failed: $e';
       });
-      gUtils.showErrorSnackbar(context, 'Board info read failed');
+      myUtils.showErrorSnackbar(context, 'Board info read failed');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -176,7 +176,7 @@ class _InfoBlockState extends ConsumerState<_InfoBlock> {
       ),
     );
     if (ok == true && mounted) {
-      gUtils.showSnackbar(context, 'Reboot: not implemented');
+      myUtils.showSnackbar(context, 'Reboot: not implemented');
     }
   }
 
@@ -214,8 +214,10 @@ class _InfoBlockState extends ConsumerState<_InfoBlock> {
                 icon: Icons.upload_file,
                 label: 'DTB Deploy',
                 tooltipStr: 'Deploy an updated device-tree blob',
-                onPressed: () =>
-                    gUtils.showSnackbar(context, 'DTB deploy: not implemented'),
+                onPressed: () => myUtils.showSnackbar(
+                  context,
+                  'DTB deploy: not implemented',
+                ),
               ),
               const SizedBox(width: 8),
               PanelActionButton(
@@ -257,7 +259,7 @@ class _TegraStatsBlockState extends ConsumerState<_TegraStatsBlock> {
   // interval means the first line lands well inside the 1.5s window, so a sample
   // is never killed before it prints at least one line.
   static const _sampleCmd =
-      'tegrastats --interval 500 & sleep 1.5; kill \$! 2>/dev/null';
+      'tegrastats --interval 500 & sleep 1.5; kill \$! 2>/dev/null; echo "STORAGE: \$(df -P -m / | tail -n 1)"';
 
   // ≈1 hour of samples at the 2s auto-refresh interval (1800 ticks).
   static const _maxHistory = 1800;

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
 import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 
-MyUtils gUtils = MyUtils();
+MyUtils myUtils = MyUtils();
 
 class MyUtils {
   /// Show SnackBar with success color in green while given duration in ms

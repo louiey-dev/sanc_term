@@ -111,6 +111,14 @@ So the flow is:
 at NORDIC nRF/Thingy:53
 - 2026.07.14
   - add Buzzer scale buttons
+- 2026.07.15
+  - add a Text/Hex selector dropdown next to the BLE NUS command field
+  - add a hex string parser to convert user input arrays (e.g., `00 11 22` or
+     `0xAA 0xBB`) to a `Uint8List` byte array, sending them raw via `sendBleWrite` instead of encoding as UTF-8 string commands
+- 2026.07.16
+  - add thingy53_parser which parses byte array for message and string for telemetry data
+  - add myUtils
+  - add nVidia Tesgra memory(RAM/Storage) info to telemetry data
 
 ## Info
 

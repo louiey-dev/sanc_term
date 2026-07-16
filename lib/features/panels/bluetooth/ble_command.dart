@@ -39,10 +39,12 @@ void sendBleWrite(
   Uint8List bytes,
 ) {
   if (!ref.read(bleNotifierProvider).isConnected) {
-    gUtils.showErrorSnackbar(context, 'No connected BLE device');
+    myUtils.showErrorSnackbar(context, 'No connected BLE device');
     return;
   }
-  ref.read(bleNotifierProvider.notifier).writeChar(service, characteristic, bytes);
+  ref
+      .read(bleNotifierProvider.notifier)
+      .writeChar(service, characteristic, bytes);
 }
 
 /// Sends [command] as UTF-8 to a characteristic (NUS RX by default), appending
