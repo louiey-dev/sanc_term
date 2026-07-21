@@ -52,6 +52,8 @@ dependencies:
   path: ^1.9.1
   flutter_tts: ^4.2.5
   universal_ble: ^1.2.0
+  crypto: ^3.0.6
+  archive: ^4.0.2
 
 dev_dependencies:
   flutter_test:

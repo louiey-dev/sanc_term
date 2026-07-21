@@ -18,6 +18,7 @@ import 'package:sanc_term/features/panels/esp/esp_at.dart';
 import 'package:sanc_term/features/panels/esp/esp_ota.dart';
 import 'package:sanc_term/features/panels/models/panel_entry.dart';
 import 'package:sanc_term/features/panels/nordic/nrf_ble.dart';
+import 'package:sanc_term/features/panels/nordic/nrf_ota.dart';
 import 'package:sanc_term/features/panels/nordic/nrf_uart.dart';
 import 'package:sanc_term/features/panels/nordic/thingy53.dart';
 import 'package:sanc_term/features/panels/nvidia/nv_audio.dart';
@@ -294,6 +295,12 @@ const panelGroups = [
         icon: Icons.bluetooth,
       ),
       PanelEntry(
+        id: 'nrf_ota',
+        label: 'nRF BLE OTA (DFU)',
+        description: 'Nordic MCUboot / SMP DFU over BLE',
+        icon: Icons.cloud_upload,
+      ),
+      PanelEntry(
         id: 'thingy53',
         label: 'Thingy:53',
         description: 'Thingy:53 EVM sensor, LED & BLE test',
@@ -391,6 +398,7 @@ final Map<String, Widget Function()> _realPanels = {
   // Nordic nRF
   'nrf_uart': () => const NrfUartPanel(),
   'nrf_ble': () => const NrfBlePanel(),
+  'nrf_ota': () => const NrfOtaPanel(),
   'thingy53': () => const Thingy53Panel(),
   // On-device voice
   'odv_default': () => const OnDeviceVoicePanel(),

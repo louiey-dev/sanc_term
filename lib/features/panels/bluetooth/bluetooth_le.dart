@@ -7,8 +7,6 @@ import '../../../shared/widgets/panel.dart';
 import 'providers/ble_notifier.dart';
 import 'widgets/ble_gatt_control.dart';
 
-final scanFilter = TextEditingController();
-
 class BlePanel extends ConsumerStatefulWidget {
   const BlePanel({super.key});
 
@@ -17,16 +15,23 @@ class BlePanel extends ConsumerStatefulWidget {
 }
 
 class _BlePanelState extends ConsumerState<BlePanel> {
+  late final TextEditingController _scanFilterController;
+
   @override
   void initState() {
     super.initState();
-    // Re-filter the list as the query changes.
-    scanFilter.addListener(() => setState(() {}));
+    _scanFilterController = TextEditingController(text: 'sanc_');
+    _scanFilterController.addListener(_onFilterChanged);
+  }
+
+  void _onFilterChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    // scanFilter.dispose();
+    _scanFilterController.removeListener(_onFilterChanged);
+    _scanFilterController.dispose();
     super.dispose();
   }
 
@@ -35,7 +40,7 @@ class _BlePanelState extends ConsumerState<BlePanel> {
     final state = ref.watch(bleNotifierProvider);
     final notifier = ref.read(bleNotifierProvider.notifier);
 
-    final query = scanFilter.text.trim().toLowerCase();
+    final query = _scanFilterController.text.trim().toLowerCase();
     final filtered = query.isEmpty
         ? state.devices
         : state.devices
@@ -139,7 +144,7 @@ class _BlePanelState extends ConsumerState<BlePanel> {
               SizedBox(
                 height: 40,
                 child: TextField(
-                  controller: scanFilter,
+                  controller: _scanFilterController,
                   decoration: InputDecoration(
                     labelText: 'Filter',
                     hintText: 'Filter by name or ID…',
@@ -149,7 +154,7 @@ class _BlePanelState extends ConsumerState<BlePanel> {
                         : IconButton(
                             icon: const Icon(Icons.close, size: 16),
                             tooltip: 'Clear filter',
-                            onPressed: scanFilter.clear,
+                            onPressed: _scanFilterController.clear,
                           ),
                     border: const OutlineInputBorder(),
                     isDense: true,

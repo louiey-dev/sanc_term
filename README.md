@@ -119,6 +119,10 @@ at NORDIC nRF/Thingy:53
   - add thingy53_parser which parses byte array for message and string for telemetry data
   - add myUtils
   - add nVidia Tesgra memory(RAM/Storage) info to telemetry data
+- 2026.07.21
+  - add nRF NCS OTA function under NORDIC_nRF panel
+    - nRF BLE OTA
+    - tested with dfu_application.zip and also zephyr.signed.bin and both are work with OTA
 
 ## Info
 

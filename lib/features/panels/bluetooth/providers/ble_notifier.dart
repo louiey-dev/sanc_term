@@ -430,22 +430,23 @@ class BleNotifier extends _$BleNotifier {
   Future<void> writeChar(
     String serviceUuid,
     String charUuid,
-    Uint8List value,
-  ) async {
+    Uint8List value, {
+    bool? withoutResponse,
+  }) async {
     final id = state.connectedId;
     if (id == null) return;
     final ch = _findChar(serviceUuid, charUuid);
-    final withoutResponse =
-        ch != null &&
-        !ch.properties.contains(BleCharProperty.write) &&
-        ch.properties.contains(BleCharProperty.writeWithoutResponse);
+    final useWithoutResponse = withoutResponse ??
+        (ch != null &&
+            !ch.properties.contains(BleCharProperty.write) &&
+            ch.properties.contains(BleCharProperty.writeWithoutResponse));
     try {
       await _ble.write(
         id,
         serviceUuid,
         charUuid,
         value,
-        withoutResponse: withoutResponse,
+        withoutResponse: useWithoutResponse,
       );
     } catch (e) {
       state = state.copyWith(error: 'Write failed: $e');

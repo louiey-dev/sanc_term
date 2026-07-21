@@ -51,6 +51,7 @@ app.*.map.json
 /linux
 /macos
 /test
+/test_bin
 /web
 /windows
 /installer
