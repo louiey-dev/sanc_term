@@ -5,6 +5,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sanc_term/features/panels/bluetooth/ble_command.dart';
 import 'package:sanc_term/features/panels/nordic/thingy53_parser.dart';
 import 'package:sanc_term/services/ble_service.dart';
+import 'package:sanc_term/services/telemetry_server_service.dart';
 
 part 'ble_notifier.g.dart';
 
@@ -172,19 +173,39 @@ class BleNotifier extends _$BleNotifier {
     _valuesSub = _ble.characteristicUpdates.listen((e) {
       if (e.characteristicId == NusUuids.tx) {
         final bytes = e.value;
+        Thingy53Telemetry? parsed;
         if (bytes.length >= 2 && bytes[0] == 0xA5 && bytes[1] == 0x5A) {
           // byte array message
-          Thingy53Parser.parseByteArray(bytes);
+          parsed = Thingy53Parser.parseByteArray(bytes);
         } else {
           // string data or json
-          final parsed = Thingy53Parser.parse(e.value);
+          parsed = Thingy53Parser.parse(e.value);
+        }
+        if (parsed != null) {
           state = state.copyWith(telemetry: parsed);
+          try {
+            final server = ref.read(telemetryServerProvider);
+            if (!server.isRunning) {
+              server.start().then((_) {
+                server.broadcast(parsed!.toTelemetryMap());
+              }).catchError((_) {});
+            } else {
+              server.broadcast(parsed.toTelemetryMap());
+            }
+          } catch (_) {}
         }
       }
       _onRx(e.characteristicId, e.value);
     });
     _seedAvailability();
+    _initTelemetryServer();
     return const BleState();
+  }
+
+  void _initTelemetryServer() {
+    try {
+      ref.read(telemetryServerProvider).start().catchError((_) {});
+    } catch (_) {}
   }
 
   // Best-effort one-shot read of the current radio state. Kept in its own async

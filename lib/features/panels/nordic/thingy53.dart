@@ -616,6 +616,26 @@ class _Thingy53PanelState extends ConsumerState<Thingy53Panel> {
                             : null,
                       ),
                       PanelActionButton(
+                        icon: Icons.start_outlined,
+                        label: 'sensor log on',
+                        tooltipStr: 'Sensor read log enable',
+                        onPressed: bleConnected
+                            ? () {
+                                _handleBleSend('a5 5a 08 01 1B 01 01 00');
+                              }
+                            : null,
+                      ),
+                      PanelActionButton(
+                        icon: Icons.start_outlined,
+                        label: 'sensor log off',
+                        tooltipStr: 'Sensor read log disable',
+                        onPressed: bleConnected
+                            ? () {
+                                _handleBleSend('a5 5a 08 01 1B 00 00 00');
+                              }
+                            : null,
+                      ),
+                      PanelActionButton(
                         icon: Icons.tv_outlined,
                         label: 'SM on',
                         tooltipStr: 'Start state machine',

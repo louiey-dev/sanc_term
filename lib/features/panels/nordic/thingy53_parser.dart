@@ -181,23 +181,23 @@ class Thingy53Parser {
     );
   }
 
-  static parseByteArray(Uint8List data) {
+  static Thingy53Telemetry? parseByteArray(Uint8List data) {
     final p = Uint8List.fromList(data);
     myUtils.log('parseByteArray received ${p.length} bytes');
-    final hexBytes = p
-        .take(4)
-        .map((b) => '0x${b.toRadixString(16).padLeft(2, '0').toUpperCase()}')
-        .join(', ');
-    myUtils.log(hexBytes);
+    if (p.length < 6) {
+      myUtils.err("Payload header too short");
+      return null;
+    }
 
     if (p[0] == 0xA5 && p[1] == 0x5A) {
-      parseNusData(p);
+      return parseNusData(p);
     } else {
       myUtils.err("Magic word not matched");
+      return null;
     }
   }
 
-  static parseNusData(Uint8List p) {
+  static Thingy53Telemetry? parseNusData(Uint8List p) {
     final len = p[2];
     final msgCount = p[3];
     final msgIdRaw = p[4];
@@ -210,23 +210,121 @@ class Thingy53Parser {
     final msgId = MsgId.fromValue(msgIdRaw);
     if (msgId == null) {
       myUtils.err('invalid msg id, $msgIdRaw');
-      return;
+      return null;
     }
 
     switch (msgId) {
       case MsgId.msgResVer:
-        final version = utf8.decode(
-          Uint8List.sublistView(p, 6, 6 + msgLen),
-          allowMalformed: true,
-        );
-        myUtils.log('received version info, $version');
-        break;
+        if (p.length >= 6 + msgLen) {
+          final version = utf8.decode(
+            Uint8List.sublistView(p, 6, 6 + msgLen),
+            allowMalformed: true,
+          );
+          myUtils.log('received version info, $version');
+        }
+        return null;
       case MsgId.msgResStats:
-        // TODO: Implement statistics parser
-        break;
+        return null;
+      case MsgId.msgPktPayload:
+        // Parse 16 parameters starting from offset 6 (each 2 bytes = 32 bytes total)
+        // 4-byte sensor parsing (2B val1 + 2B val2 = 4B) requires 6 + 8 + 48 = 62 bytes total
+        // 2-byte sensor parsing requires 6 + 8 + 24 = 38 bytes total
+        if (p.length < 38) {
+          myUtils.err('msgPktPayload too short: ${p.length} bytes, expected at least 38');
+          return null;
+        }
+
+        int parseInt16(int offset) {
+          final raw = (p[offset] << 8) | p[offset + 1];
+          return raw > 32767 ? raw - 65536 : raw;
+        }
+
+        int parseUint16(int offset) {
+          return (p[offset] << 8) | p[offset + 1];
+        }
+
+        // Parse 4-byte Zephyr sensor_value (2B int16_t val1 + 2B int16_t val2)
+        // Formula: val1 + val2 / 1000.0 (e.g. val1=28, val2=610 -> 28.610)
+        double parseSensorValue4B(int offset, {double scale = 1000.0}) {
+          final val1 = parseInt16(offset);
+          final val2 = parseInt16(offset + 2);
+          final frac = val2 / scale;
+          return val1 >= 0 ? (val1 + frac) : (val1 - frac.abs());
+        }
+
+        final bool is4ByteFormat = p.length >= 62;
+
+        double parseSensor(int offset4B, int offset2B) {
+          if (is4ByteFormat) {
+            return parseSensorValue4B(offset4B);
+          } else {
+            final rawB1 = p[offset2B];
+            final rawB2 = p[offset2B + 1];
+            final val1 = rawB1 > 127 ? rawB1 - 256 : rawB1;
+            final val2 = rawB2 > 127 ? rawB2 - 256 : rawB2;
+            return val1 + (val2 / 100.0);
+          }
+        }
+
+        final int? batMv = is4ByteFormat
+            ? (p.length >= 64 ? parseUint16(62) : null)
+            : (p.length >= 40 ? parseUint16(38) : null);
+
+        final telemetry = Thingy53Telemetry(
+          lightRed: parseUint16(6),
+          lightGreen: parseUint16(8),
+          lightBlue: parseUint16(10),
+          lightIr: parseUint16(12),
+          temperature: parseSensor(14, 14),
+          pressure: parseSensor(18, 16),
+          humidity: parseSensor(22, 18),
+          accelX: parseSensor(26, 20),
+          accelY: parseSensor(30, 22),
+          accelZ: parseSensor(34, 24),
+          gyroX: parseSensor(38, 26),
+          gyroY: parseSensor(42, 28),
+          gyroZ: parseSensor(46, 30),
+          magX: parseSensor(50, 32),
+          magY: parseSensor(54, 34),
+          magZ: parseSensor(58, 36),
+          batteryMillivolts: batMv,
+          rawOutput: p
+              .take(p.length)
+              .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
+              .join(' '),
+        );
+
+        myUtils.log('Parsed 16-sensor binary payload: $telemetry');
+        return telemetry;
       default:
-        break;
+        return null;
     }
+  }
+}
+
+extension Thingy53TelemetryX on Thingy53Telemetry {
+  /// Formats the parsed Thingy:53 telemetry into a map suitable for SSE telemetry broadcasting.
+  Map<String, dynamic> toTelemetryMap() {
+    return {
+      'temp_c': temperature,
+      'humidity_pct': humidity,
+      'pressure_hpa': pressure,
+      'gas_res_ohm': gasResistance,
+      'light_red': lightRed,
+      'light_green': lightGreen,
+      'light_blue': lightBlue,
+      'light_ir': lightIr,
+      'accel_x': accelX,
+      'accel_y': accelY,
+      'accel_z': accelZ,
+      'gyro_x': gyroX,
+      'gyro_y': gyroY,
+      'gyro_z': gyroZ,
+      'mag_x': magX,
+      'mag_y': magY,
+      'mag_z': magZ,
+      'battery_mv': batteryMillivolts,
+    };
   }
 }
 
@@ -241,7 +339,10 @@ enum MsgId {
   msgResTelemetry(0x17),
   msgSetSmDuration(0x18),
   msgResSmDuration(0x19),
-  msgMax(0x1A);
+  msgPktPayload(0x1A),
+  msgSetSensorLog(0x1B),
+  msgResSensorLog(0x1C),
+  msgMax(0x1D);
 
   final int value;
   const MsgId(this.value);

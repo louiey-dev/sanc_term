@@ -123,6 +123,7 @@ at NORDIC nRF/Thingy:53
   - add nRF NCS OTA function under NORDIC_nRF panel
     - nRF BLE OTA
     - tested with dfu_application.zip and also zephyr.signed.bin and both are work with OTA
+  - add Telemetry data post from BLE payload data
 
 ## Info
 

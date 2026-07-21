@@ -33,23 +33,29 @@ class TelemetryServer {
   /// Starts the HTTP server if it isn't already running.
   Future<void> start() async {
     if (_server != null) return;
-    final HttpServer server;
+    HttpServer server;
     try {
-      server = await HttpServer.bind(InternetAddress.anyIPv4, port);
-    } on SocketException catch (e) {
-      // 10013 (WSAEACCES) on Windows means the port sits inside an OS-reserved
-      // (excluded) range, usually claimed by Hyper-V/WSL/Docker's winnat.
-      if (e.osError?.errorCode == 10013) {
-        throw Exception(
-          'Port $port is inside a Windows-reserved port range and cannot be '
-          'bound. Free it from an elevated PowerShell, then retry:\n'
-          'net stop winnat; '
-          'netsh int ipv4 add excludedportrange protocol=tcp '
-          'startport=$port numberofports=1 store=persistent; '
-          'net start winnat',
+      // Listen on dual-stack IPv4 (127.0.0.1) and IPv6 (::1 / localhost)
+      server = await HttpServer.bind(
+        InternetAddress.anyIPv6,
+        port,
+        v6Only: false,
+        shared: true,
+      );
+    } catch (_) {
+      try {
+        server = await HttpServer.bind(
+          InternetAddress.anyIPv4,
+          port,
+          shared: true,
+        );
+      } catch (_) {
+        server = await HttpServer.bind(
+          InternetAddress.loopbackIPv4,
+          port,
+          shared: true,
         );
       }
-      rethrow;
     }
     _server = server;
     server.listen(_handle, onError: (_) {});
