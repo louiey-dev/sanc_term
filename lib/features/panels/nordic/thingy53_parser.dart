@@ -184,17 +184,154 @@ class Thingy53Parser {
   static Thingy53Telemetry? parseByteArray(Uint8List data) {
     final p = Uint8List.fromList(data);
     myUtils.log('parseByteArray received ${p.length} bytes');
-    if (p.length < 6) {
-      myUtils.err("Payload header too short");
+
+    if (p.length >= 6 && p[0] == 0xA5 && p[1] == 0x5A) {
+      return parseNusData(p);
+    } else if (p.length >= 62) {
+      return parse62ByteTelemetry(p, 0);
+    } else if (p.length >= 52) {
+      return parse52ByteTelemetry(p, 0);
+    } else {
+      myUtils.err("Payload too short or magic word not matched: ${p.length} bytes");
       return null;
+    }
+  }
+
+  /// Parses the updated 62-byte binary telemetry payload structure:
+  /// - 8 bytes: Light (red, green, blue, ir as uint16_t big-endian)
+  /// - 12 bytes: Environment (temp, press, hum as float32 little-endian)
+  /// - 4 bytes: Gas resistance (gas_resistance as uint32_t big-endian)
+  /// - 36 bytes: Motion (accX/Y/Z, gyroX/Y/Z, magX/Y/Z as float32 little-endian)
+  /// - 2 bytes: Battery voltage (batt_mv as uint16_t big-endian)
+  static Thingy53Telemetry parse62ByteTelemetry(Uint8List p, int offset) {
+    final bd = ByteData.sublistView(p, offset, offset + 62);
+
+    final lightRed = bd.getUint16(0, Endian.big);
+    final lightGreen = bd.getUint16(2, Endian.big);
+    final lightBlue = bd.getUint16(4, Endian.big);
+    final lightIr = bd.getUint16(6, Endian.big);
+
+    final temperature = bd.getFloat32(8, Endian.little);
+    final pressure = bd.getFloat32(12, Endian.little);
+    final humidity = bd.getFloat32(16, Endian.little);
+    final gasResistance = bd.getUint32(20, Endian.big).toDouble();
+
+    final accelX = bd.getFloat32(24, Endian.little);
+    final accelY = bd.getFloat32(28, Endian.little);
+    final accelZ = bd.getFloat32(32, Endian.little);
+
+    final gyroX = bd.getFloat32(36, Endian.little);
+    final gyroY = bd.getFloat32(40, Endian.little);
+    final gyroZ = bd.getFloat32(44, Endian.little);
+
+    final magX = bd.getFloat32(48, Endian.little);
+    final magY = bd.getFloat32(52, Endian.little);
+    final magZ = bd.getFloat32(56, Endian.little);
+
+    final batteryMillivolts = bd.getUint16(60, Endian.big);
+
+    final telemetry = Thingy53Telemetry(
+      lightRed: lightRed,
+      lightGreen: lightGreen,
+      lightBlue: lightBlue,
+      lightIr: lightIr,
+      temperature: temperature,
+      pressure: pressure,
+      humidity: humidity,
+      gasResistance: gasResistance,
+      accelX: accelX,
+      accelY: accelY,
+      accelZ: accelZ,
+      gyroX: gyroX,
+      gyroY: gyroY,
+      gyroZ: gyroZ,
+      magX: magX,
+      magY: magY,
+      magZ: magZ,
+      batteryMillivolts: batteryMillivolts,
+      rawOutput: p
+          .sublist(offset, offset + 62)
+          .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
+          .join(' '),
+    );
+
+    myUtils.log('Parsed 62-byte binary telemetry payload: $telemetry');
+    return telemetry;
+  }
+
+  /// Parses the 52-byte binary telemetry payload structure:
+  /// - 8 bytes: Light (red, green, blue, ir as uint16_t big-endian)
+  /// - 6 bytes: Environment (temp val1/val2, press val1/val2, hum val1/val2 as int8_t)
+  /// - 36 bytes: Motion (accX/Y/Z, gyroX/Y/Z, magX/Y/Z as float32 little-endian)
+  /// - 2 bytes: Battery voltage (batt_mv as uint16_t big-endian)
+  static Thingy53Telemetry parse52ByteTelemetry(Uint8List p, int offset) {
+    final bd = ByteData.sublistView(p, offset, offset + 52);
+
+    final lightRed = bd.getUint16(0, Endian.big);
+    final lightGreen = bd.getUint16(2, Endian.big);
+    final lightBlue = bd.getUint16(4, Endian.big);
+    final lightIr = bd.getUint16(6, Endian.big);
+
+    double parse2BVal(int v1, int v2) {
+      final frac = v2 / 100.0;
+      if (v1 < 0 || (v1 == 0 && v2 < 0)) {
+        return v1 - frac.abs();
+      }
+      return v1 + frac;
     }
 
-    if (p[0] == 0xA5 && p[1] == 0x5A) {
-      return parseNusData(p);
-    } else {
-      myUtils.err("Magic word not matched");
-      return null;
-    }
+    final tempVal1 = bd.getInt8(8);
+    final tempVal2 = bd.getInt8(9);
+    final temperature = parse2BVal(tempVal1, tempVal2);
+
+    final pressVal1 = bd.getInt8(10);
+    final pressVal2 = bd.getInt8(11);
+    final pressure = parse2BVal(pressVal1, pressVal2);
+
+    final humVal1 = bd.getInt8(12);
+    final humVal2 = bd.getInt8(13);
+    final humidity = parse2BVal(humVal1, humVal2);
+
+    final accelX = bd.getFloat32(14, Endian.little);
+    final accelY = bd.getFloat32(18, Endian.little);
+    final accelZ = bd.getFloat32(22, Endian.little);
+
+    final gyroX = bd.getFloat32(26, Endian.little);
+    final gyroY = bd.getFloat32(30, Endian.little);
+    final gyroZ = bd.getFloat32(34, Endian.little);
+
+    final magX = bd.getFloat32(38, Endian.little);
+    final magY = bd.getFloat32(42, Endian.little);
+    final magZ = bd.getFloat32(46, Endian.little);
+
+    final batteryMillivolts = bd.getUint16(50, Endian.big);
+
+    final telemetry = Thingy53Telemetry(
+      lightRed: lightRed,
+      lightGreen: lightGreen,
+      lightBlue: lightBlue,
+      lightIr: lightIr,
+      temperature: temperature,
+      pressure: pressure,
+      humidity: humidity,
+      accelX: accelX,
+      accelY: accelY,
+      accelZ: accelZ,
+      gyroX: gyroX,
+      gyroY: gyroY,
+      gyroZ: gyroZ,
+      magX: magX,
+      magY: magY,
+      magZ: magZ,
+      batteryMillivolts: batteryMillivolts,
+      rawOutput: p
+          .sublist(offset, offset + 52)
+          .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
+          .join(' '),
+    );
+
+    myUtils.log('Parsed 52-byte binary telemetry payload: $telemetry');
+    return telemetry;
   }
 
   static Thingy53Telemetry? parseNusData(Uint8List p) {
@@ -226,7 +363,17 @@ class Thingy53Parser {
       case MsgId.msgResStats:
         return null;
       case MsgId.msgPktPayload:
-        // Parse 16 parameters starting from offset 6 (each 2 bytes = 32 bytes total)
+        // Handle new 62-byte payload structure (header: 6 bytes + payload: 62 bytes = 68 bytes total)
+        if (msgLen == 62 || p.length >= 68) {
+          return parse62ByteTelemetry(p, 6);
+        }
+
+        // Handle 52-byte payload structure (header: 6 bytes + payload: 52 bytes = 58 bytes total)
+        if (msgLen == 52 || (p.length >= 58 && p.length < 68)) {
+          return parse52ByteTelemetry(p, 6);
+        }
+
+        // Legacy format fallback:
         // 4-byte sensor parsing (2B val1 + 2B val2 = 4B) requires 6 + 8 + 48 = 62 bytes total
         // 2-byte sensor parsing requires 6 + 8 + 24 = 38 bytes total
         if (p.length < 38) {
@@ -243,8 +390,6 @@ class Thingy53Parser {
           return (p[offset] << 8) | p[offset + 1];
         }
 
-        // Parse 4-byte Zephyr sensor_value (2B int16_t val1 + 2B int16_t val2)
-        // Formula: val1 + val2 / 1000.0 (e.g. val1=28, val2=610 -> 28.610)
         double parseSensorValue4B(int offset, {double scale = 1000.0}) {
           final val1 = parseInt16(offset);
           final val2 = parseInt16(offset + 2);
@@ -294,7 +439,7 @@ class Thingy53Parser {
               .join(' '),
         );
 
-        myUtils.log('Parsed 16-sensor binary payload: $telemetry');
+        myUtils.log('Parsed legacy 16-sensor binary payload: $telemetry');
         return telemetry;
       default:
         return null;

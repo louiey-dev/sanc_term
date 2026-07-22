@@ -124,6 +124,8 @@ at NORDIC nRF/Thingy:53
     - nRF BLE OTA
     - tested with dfu_application.zip and also zephyr.signed.bin and both are work with OTA
   - add Telemetry data post from BLE payload data
+- 2026.07.22
+  - updated sensor packet structure
 
 ## Info
 

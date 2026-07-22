@@ -15,6 +15,10 @@ class MenuSidebar extends StatelessWidget {
         ? location.substring('/home/panel/'.length)
         : null;
 
+    final hasAnyActiveGroup = panelGroups.any(
+      (group) => group.items.any((e) => e.id == activePanelId),
+    );
+
     return Container(
       width: 220,
       decoration: BoxDecoration(
@@ -27,11 +31,13 @@ class MenuSidebar extends StatelessWidget {
         itemBuilder: (context, groupIndex) {
           final group = panelGroups[groupIndex];
           final isGroupActive = group.items.any((e) => e.id == activePanelId);
+          final shouldExpand = isGroupActive || (!hasAnyActiveGroup && groupIndex == 0);
 
           return Theme(
             data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
             child: ExpansionTile(
-              initiallyExpanded: isGroupActive || groupIndex == 0,
+              key: PageStorageKey('group_${group.title}'),
+              initiallyExpanded: shouldExpand,
               tilePadding: const EdgeInsets.symmetric(horizontal: 16),
               childrenPadding: const EdgeInsets.symmetric(horizontal: 8),
               collapsedIconColor: isGroupActive ? c.primary : c.muted,
