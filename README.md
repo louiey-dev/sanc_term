@@ -4,6 +4,7 @@ terminal app which supports xtem/uart/udp support
 
 ## Layout tree
 
+```text
 Scaffold ─ Column
 ├─ ConnectionBar                         ← top bar, full width
 └─ MultiSplitView (vertical, draggable divider)
@@ -11,28 +12,19 @@ Scaffold ─ Column
    │   ├─ MenuSidebar                     ← LEFT column (fixed 220px)
    │   └─ Expanded( widget.child )        ← MIDDLE-RIGHT (routed content)
    └─ area "log"   (flex 1)               ← BOTTOM window (terminal panes)
+```
 
-Block → file
-┌───────────────────────┬─────────────────────────────────────────────────────┬────────────────────────────────┐
-│     Screen block      │                        File                         │             Notes              │
-├───────────────────────┼─────────────────────────────────────────────────────┼────────────────────────────────┤
-│ Top bar (serial       │ lib/features/connection/widgets/connection_bar.dart │ Full-width, above everything   │
-│ options)              │                                                     │                                │
-├───────────────────────┼─────────────────────────────────────────────────────┼────────────────────────────────┤
-│ Left column (menu)    │ lib/features/home/widgets/menu_sidebar.dart         │ 220px fixed; collapsible       │
-│                       │                                                     │ groups                         │
-├───────────────────────┼─────────────────────────────────────────────────────┼────────────────────────────────┤
-│ Middle-right (main    │ routed — widget.child                               │ not one file — see below       │
-│ content)              │                                                     │                                │
-├───────────────────────┼─────────────────────────────────────────────────────┼────────────────────────────────┤
-│ Bottom window         │ lib/features/terminal/widgets/log_panel.dart        │ The split terminal panes       │
-│ (terminals)           │                                                     │ you've been editing            │
-├───────────────────────┼─────────────────────────────────────────────────────┼────────────────────────────────┤
-│ The whole frame       │ lib/features/home/home_screen.dart                  │ Owns the Column + vertical     │
-│                       │                                                     │ split                          │
-└───────────────────────┴─────────────────────────────────────────────────────┴────────────────────────────────┘
+### Component Mapping
 
-The middle-right is routed, not a single file
+| Screen Block | File | Notes |
+| :--- | :--- | :--- |
+| **Top bar** (serial options) | `lib/features/connection/widgets/connection_bar.dart` | Full-width, above everything |
+| **Left column** (menu) | `lib/features/home/widgets/menu_sidebar.dart` | 220px fixed; collapsible groups |
+| **Middle-right** (main content) | routed — `widget.child` | Dynamic content (see routing flow below) |
+| **Bottom window** (terminals) | `lib/features/terminal/widgets/log_panel.dart` | Split terminal panes |
+| **The whole frame** | `lib/features/home/home_screen.dart` | Owns Column + vertical split |
+
+### Routing Flow
 
 That widget.child is filled by go_router, so its content changes with what you click in the left sidebar:
 
