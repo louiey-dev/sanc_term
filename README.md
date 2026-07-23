@@ -126,6 +126,8 @@ at NORDIC nRF/Thingy:53
   - add Telemetry data post from BLE payload data
 - 2026.07.22
   - updated sensor packet structure
+- 2026.07.23
+  - while resize terminal panels, somethimes there happenned app pause issue and fixed
 
 ## Info
 

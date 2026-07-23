@@ -32,6 +32,7 @@ class _LogPanelState extends ConsumerState<LogPanel> {
   final Map<String, Pty> _ptys = {};
   final Map<String, PtyConsole> _consoles = {};
   final Set<String> _ptyStarted = {};
+  final Map<String, Timer> _ptyResizeDebouncers = {};
   late final BoardConsoleRegistry _registry;
 
   /// BLE notification feeds, one per `ble`-type tab (keyed by tab id).
@@ -55,6 +56,10 @@ class _LogPanelState extends ConsumerState<LogPanel> {
   @override
   void dispose() {
     _splitController.dispose();
+    for (final timer in _ptyResizeDebouncers.values) {
+      timer.cancel();
+    }
+    _ptyResizeDebouncers.clear();
     for (final id in _consoles.keys) {
       _registry.unregister(id);
     }
@@ -100,6 +105,7 @@ class _LogPanelState extends ConsumerState<LogPanel> {
         _registry.unregister(id);
         _ptyStarted.remove(id);
         _bleSubs.remove(id)?.cancel();
+        _ptyResizeDebouncers.remove(id)?.cancel();
       }
     }
     _syncAreas(next);
@@ -141,7 +147,14 @@ class _LogPanelState extends ConsumerState<LogPanel> {
           pty.write(const Utf8Encoder().convert(data));
         } catch (_) {}
       };
-      tab.terminal.onResize = (w, h, pw, ph) => pty.resize(h, w);
+      tab.terminal.onResize = (w, h, pw, ph) {
+        _ptyResizeDebouncers[tab.id]?.cancel();
+        _ptyResizeDebouncers[tab.id] = Timer(const Duration(milliseconds: 100), () {
+          try {
+            pty.resize(h, w);
+          } catch (_) {}
+        });
+      };
     } catch (e) {
       tab.terminal.write('Failed to start PTY: $e\r\n');
     }

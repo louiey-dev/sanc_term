@@ -192,7 +192,9 @@ class Thingy53Parser {
     } else if (p.length >= 52) {
       return parse52ByteTelemetry(p, 0);
     } else {
-      myUtils.err("Payload too short or magic word not matched: ${p.length} bytes");
+      myUtils.err(
+        "Payload too short or magic word not matched: ${p.length} bytes",
+      );
       return null;
     }
   }
@@ -363,8 +365,8 @@ class Thingy53Parser {
       case MsgId.msgResStats:
         return null;
       case MsgId.msgPktPayload:
-        // Handle new 62-byte payload structure (header: 6 bytes + payload: 62 bytes = 68 bytes total)
-        if (msgLen == 62 || p.length >= 68) {
+        // Handle 62-byte payload structure (header: 6 bytes + payload: 62 bytes = 68 bytes total, or msgLen == 62)
+        if (msgLen == 62 || p.length >= 68 || (p.length >= 6 && p.length - 6 >= 62)) {
           return parse62ByteTelemetry(p, 6);
         }
 
@@ -377,7 +379,9 @@ class Thingy53Parser {
         // 4-byte sensor parsing (2B val1 + 2B val2 = 4B) requires 6 + 8 + 48 = 62 bytes total
         // 2-byte sensor parsing requires 6 + 8 + 24 = 38 bytes total
         if (p.length < 38) {
-          myUtils.err('msgPktPayload too short: ${p.length} bytes, expected at least 38');
+          myUtils.err(
+            'msgPktPayload too short: ${p.length} bytes, expected at least 38',
+          );
           return null;
         }
 
@@ -441,6 +445,12 @@ class Thingy53Parser {
 
         myUtils.log('Parsed legacy 16-sensor binary payload: $telemetry');
         return telemetry;
+      case MsgId.msgPktCborSensor:
+        return null;
+      case MsgId.msgPktCborStats:
+        return null;
+      case MsgId.msgPktCborCpu:
+        return null;
       default:
         return null;
     }
@@ -487,6 +497,9 @@ enum MsgId {
   msgPktPayload(0x1A),
   msgSetSensorLog(0x1B),
   msgResSensorLog(0x1C),
+  msgPktCborSensor(0x1D),
+  msgPktCborStats(0x1E),
+  msgPktCborCpu(0x1F),
   msgMax(0x1D);
 
   final int value;
