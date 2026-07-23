@@ -9,12 +9,17 @@ import 'package:sanc_term/core/router/app_router.dart';
 import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/core/theme/theme_provider.dart';
 import 'package:window_manager/window_manager.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _initHive();
-  await _initWindow();
-  runApp(const ProviderScope(child: SancTermApp()));
+  final version = await loadVersion();
+  final appTitle = version.isNotEmpty
+      ? 'sanc_term v$version — $_osLabel'
+      : 'sanc_term — $_osLabel';
+  await _initWindow(appTitle);
+  runApp(ProviderScope(child: SancTermApp(appTitle: appTitle)));
 }
 
 Future<void> _initHive() async {
@@ -31,25 +36,12 @@ Future<void> _initHive() async {
   await Hive.openBox<String>('app_settings');
 }
 
-Future<void> _initWindow() async {
+Future<void> _initWindow(String title) async {
   if (kIsWeb) return;
   if (!Platform.isWindows && !Platform.isMacOS && !Platform.isLinux) return;
   try {
     await windowManager.ensureInitialized();
-    // WindowOptions windowOptions = WindowOptions(
-    //   size: const Size(900, 900),
-    //   center: false,
-    //   backgroundColor: Colors.transparent,
-    //   skipTaskbar: false,
-    //   titleBarStyle: TitleBarStyle.normal,
-    //   title: 'sanc_term — $_osLabel',
-    // );
-
-    // windowManager.waitUntilReadyToShow(windowOptions, () async {
-    //   await windowManager.show();
-    //   await windowManager.focus();
-    // });
-    await windowManager.setTitle('sanc_term — $_osLabel');
+    await windowManager.setTitle(title);
   } catch (_) {
     // Native plugin not yet compiled — run `flutter build windows` once.
   }
@@ -67,8 +59,24 @@ String get _osLabel {
   };
 }
 
+Future<String> loadVersion() async {
+  try {
+    final packageInfo = await PackageInfo.fromPlatform();
+    final String version = packageInfo.version; // e.g. "1.0.0"
+    final String buildNumber = packageInfo.buildNumber; // e.g. "1"
+    final String appName = packageInfo.appName;
+    final String packageName = packageInfo.packageName;
+
+    debugPrint('$appName $packageName, Version: $version+$buildNumber');
+    return '$version+$buildNumber';
+  } catch (_) {
+    return '';
+  }
+}
+
 class SancTermApp extends ConsumerWidget {
-  const SancTermApp({super.key});
+  final String appTitle;
+  const SancTermApp({super.key, this.appTitle = 'sanc_term'});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -76,7 +84,7 @@ class SancTermApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      title: 'sanc_term — $_osLabel',
+      title: appTitle,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
@@ -84,3 +92,4 @@ class SancTermApp extends ConsumerWidget {
     );
   }
 }
+

@@ -128,6 +128,7 @@ at NORDIC nRF/Thingy:53
   - updated sensor packet structure
 - 2026.07.23
   - while resize terminal panels, somethimes there happenned app pause issue and fixed
+  - version info added at title bar
 
 ## Info
 
