@@ -13,6 +13,8 @@ class NvEthernetPanel extends ConsumerStatefulWidget {
 class _NvEthernetPanelState extends ConsumerState<NvEthernetPanel> {
   final _link = TextEditingController(text: 'eno1');
   final _ping = TextEditingController(text: '8.8.8.8');
+  final _pingDuration = TextEditingController(text: '1000');
+  final _pingCount = TextEditingController(text: '0');
   final _serverIp = TextEditingController(text: '192.168.1.2');
   final _slaveIp = TextEditingController(text: '192.168.1.7');
 
@@ -20,6 +22,8 @@ class _NvEthernetPanelState extends ConsumerState<NvEthernetPanel> {
   void dispose() {
     _link.dispose();
     _ping.dispose();
+    _pingDuration.dispose();
+    _pingCount.dispose();
     _serverIp.dispose();
     _slaveIp.dispose();
     super.dispose();
@@ -110,7 +114,35 @@ class _NvEthernetPanelState extends ConsumerState<NvEthernetPanel> {
                       ),
                     ),
                   ),
-                  _cmd('Ping', () => 'ping -I $_if -c 4 ${_ping.text}'),
+                  SizedBox(
+                    width: 80,
+                    height: 40,
+                    child: TextField(
+                      controller: _pingDuration,
+                      decoration: const InputDecoration(
+                        labelText: 'Seconds',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 80,
+                    height: 40,
+                    child: TextField(
+                      controller: _pingCount,
+                      decoration: const InputDecoration(
+                        labelText: 'Count',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  _cmd(
+                    'Ping',
+                    () =>
+                        'ping -I $_if -i ${_pingDuration.text} -c ${_pingCount.text} ${_ping.text}',
+                  ),
                   _cmd('IP route', () => 'ip route show'),
                   _cmd('ARP Table', () => 'arp -n'),
                   _cmd('Interface errors', () => 'cat /proc/net/dev'),

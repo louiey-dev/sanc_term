@@ -42,6 +42,7 @@ import 'package:sanc_term/features/panels/rockchip/rc_uart.dart';
 import 'package:sanc_term/features/panels/rockchip/rc_usb.dart';
 import 'package:sanc_term/features/panels/voice/odv_default.dart';
 import 'package:sanc_term/features/panels/lte/lte_module.dart';
+import 'package:sanc_term/features/panels/stm32/f746_disco.dart';
 
 const panelGroups = [
   PanelGroup(
@@ -344,6 +345,18 @@ const panelGroups = [
       ),
     ],
   ),
+  PanelGroup(
+    title: 'STM32',
+    icon: Icons.developer_board,
+    items: [
+      PanelEntry(
+        id: 'f746_disco',
+        label: 'F746-DISCO',
+        description: 'STM32F746G-DISCO evaluation board',
+        icon: Icons.memory,
+      ),
+    ],
+  ),
 ];
 
 // Derived from panelGroups — every panel defaults to a StubPanel. Add a real
@@ -406,4 +419,6 @@ final Map<String, Widget Function()> _realPanels = {
   'ble_panel': () => const BlePanel(),
   // LTE Module
   'lte_module': () => const LteModulePanel(),
+  // STM32
+  'f746_disco': () => const F746DiscoPanel(),
 };

@@ -16,13 +16,13 @@ Scaffold ─ Column
 
 ### Component Mapping
 
-| Screen Block | File | Notes |
-| :--- | :--- | :--- |
-| **Top bar** (serial options) | `lib/features/connection/widgets/connection_bar.dart` | Full-width, above everything |
-| **Left column** (menu) | `lib/features/home/widgets/menu_sidebar.dart` | 220px fixed; collapsible groups |
-| **Middle-right** (main content) | routed — `widget.child` | Dynamic content (see routing flow below) |
-| **Bottom window** (terminals) | `lib/features/terminal/widgets/log_panel.dart` | Split terminal panes |
-| **The whole frame** | `lib/features/home/home_screen.dart` | Owns Column + vertical split |
+| Screen Block                    | File                                                  | Notes                                    |
+| :------------------------------ | :---------------------------------------------------- | :--------------------------------------- |
+| **Top bar** (serial options)    | `lib/features/connection/widgets/connection_bar.dart` | Full-width, above everything             |
+| **Left column** (menu)          | `lib/features/home/widgets/menu_sidebar.dart`         | 220px fixed; collapsible groups          |
+| **Middle-right** (main content) | routed — `widget.child`                               | Dynamic content (see routing flow below) |
+| **Bottom window** (terminals)   | `lib/features/terminal/widgets/log_panel.dart`        | Split terminal panes                     |
+| **The whole frame**             | `lib/features/home/home_screen.dart`                  | Owns Column + vertical split             |
 
 ### Routing Flow
 
@@ -121,6 +121,8 @@ at NORDIC nRF/Thingy:53
 - 2026.07.23
   - while resize terminal panels, somethimes there happenned app pause issue and fixed
   - version info added at title bar
+- 2026.07.27
+  - add STM32F746G-DISCO panel
 
 ## Info
 

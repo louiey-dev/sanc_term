@@ -37,5 +37,5 @@
 
 ## feature
 
-- its data stream send via "http://0.0.0.0:8765/telemetry" from Jetson side
-- open url " http://192.168.x.x:8765/telemetry"
+- its data stream send via <http://0.0.0.0:8765/telemetry> from Jetson side
+- open url <http://192.168.x.x:8765/telemetry>
