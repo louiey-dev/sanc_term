@@ -690,6 +690,12 @@ class _F746DiscoPanelState extends ConsumerState<F746DiscoPanel> {
                   Icons.folder_off,
                 ),
                 _btn(
+                  'Format',
+                  'sd format',
+                  'Format SD card filesystem',
+                  Icons.cleaning_services,
+                ),
+                _btn(
                   'SD Test',
                   'sd test',
                   'Run SD card speed/integrity test',
