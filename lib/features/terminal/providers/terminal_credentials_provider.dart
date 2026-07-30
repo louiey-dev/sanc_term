@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -31,7 +33,14 @@ class TerminalCredentials {
 
 @riverpod
 Future<Box<String>> terminalCredentialsBox(Ref ref) async {
-  return Hive.openBox<String>('terminal_credentials');
+  try {
+    return await Hive.openBox<String>('terminal_credentials');
+  } catch (_) {
+    if (Hive.isBoxOpen('terminal_credentials')) {
+      return Hive.box<String>('terminal_credentials');
+    }
+    return await Hive.openBox<String>('terminal_credentials', bytes: Uint8List(0));
+  }
 }
 
 @riverpod

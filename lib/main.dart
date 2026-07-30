@@ -33,7 +33,15 @@ Future<void> _initHive() async {
   }
   await Directory(hivePath).create(recursive: true);
   Hive.init(hivePath);
-  await Hive.openBox<String>('app_settings');
+  try {
+    await Hive.openBox<String>('app_settings');
+  } catch (_) {
+    if (!Hive.isBoxOpen('app_settings')) {
+      try {
+        await Hive.openBox<String>('app_settings', bytes: Uint8List(0));
+      } catch (_) {}
+    }
+  }
 }
 
 Future<void> _initWindow(String title) async {

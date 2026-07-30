@@ -91,6 +91,32 @@ class _RcSensorsPanelState extends ConsumerState<RcSensorsPanel> {
             ],
           ),
         ),
+        MyPanelBody(
+          icon: Icons.touch_app,
+          title: 'Touch Sensor',
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              PanelActionButton(
+                icon: Icons.touch_app,
+                label: 'test',
+                tooltipStr: 'test touch, select your event below',
+                onPressed: () => _send('evtest'),
+              ),
+              PanelActionButton(
+                icon: Icons.touch_app,
+                label: 'Calibration',
+                tooltipStr: '''Touch Calibration,
+in /etc/xdg/weston/weston.ini
+add below
+[libinput]
+touchscreen_calibrator=true''',
+                onPressed: () => _send('weston-touch-calibrator'),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
