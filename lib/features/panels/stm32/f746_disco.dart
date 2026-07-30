@@ -2,20 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/features/panels/common/board_command.dart';
+import 'package:sanc_term/features/panels/stm32/f746_disco_ble.dart';
+import 'package:sanc_term/features/panels/stm32/f746_disco_wifi.dart';
 import 'package:sanc_term/shared/widgets/common.dart';
 import 'package:sanc_term/shared/widgets/panel.dart';
 
 /// STM32F746G-DISCO Evaluation Board Panel.
-/// Provides sub panels for General, Audio, Storage, Ethernet, and LCD.
+/// Provides sub panels for General, Audio, Storage, Ethernet, LCD, WiFi, and BLE.
 class F746DiscoPanel extends ConsumerStatefulWidget {
-  const F746DiscoPanel({super.key});
+  final String initialTab;
+
+  const F746DiscoPanel({super.key, this.initialTab = 'all'});
 
   @override
   ConsumerState<F746DiscoPanel> createState() => _F746DiscoPanelState();
 }
 
 class _F746DiscoPanelState extends ConsumerState<F746DiscoPanel> {
-  String _selectedTab = 'all';
+  late String _selectedTab;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTab = widget.initialTab;
+  }
 
   // General Controllers
   final _sdramReadAddr = TextEditingController(text: '0x00000000');
@@ -261,6 +271,8 @@ class _F746DiscoPanelState extends ConsumerState<F746DiscoPanel> {
               _tabButton('Storage', 'storage', Icons.storage),
               _tabButton('Ethernet', 'ethernet', Icons.lan),
               _tabButton('LCD', 'lcd', Icons.desktop_windows),
+              _tabButton('WiFi', 'wifi', Icons.wifi),
+              _tabButton('BLE', 'ble', Icons.bluetooth),
             ],
           ),
         ),
@@ -275,6 +287,14 @@ class _F746DiscoPanelState extends ConsumerState<F746DiscoPanel> {
           ..._buildEthernetSubpanel(),
         if (_selectedTab == 'all' || _selectedTab == 'lcd')
           ..._buildLcdSubpanel(),
+        if (_selectedTab == 'all' ||
+            _selectedTab == 'wifi' ||
+            _selectedTab == 'wifi_bt')
+          const F746WifiPanel(standalone: false),
+        if (_selectedTab == 'all' ||
+            _selectedTab == 'ble' ||
+            _selectedTab == 'wifi_bt')
+          const F746BlePanel(standalone: false),
       ],
     );
   }

@@ -43,6 +43,8 @@ import 'package:sanc_term/features/panels/rockchip/rc_usb.dart';
 import 'package:sanc_term/features/panels/voice/odv_default.dart';
 import 'package:sanc_term/features/panels/lte/lte_module.dart';
 import 'package:sanc_term/features/panels/stm32/f746_disco.dart';
+import 'package:sanc_term/features/panels/stm32/f746_disco_ble.dart';
+import 'package:sanc_term/features/panels/stm32/f746_disco_wifi.dart';
 
 const panelGroups = [
   PanelGroup(
@@ -355,6 +357,18 @@ const panelGroups = [
         description: 'STM32F746G-DISCO evaluation board',
         icon: Icons.memory,
       ),
+      PanelEntry(
+        id: 'f746_wifi',
+        label: 'F746 Wi-Fi',
+        description: 'ESP32 Wi-Fi, TCP/IP & HTTP panel',
+        icon: Icons.wifi,
+      ),
+      PanelEntry(
+        id: 'f746_ble',
+        label: 'F746 BLE',
+        description: 'Bluetooth Low Energy panel',
+        icon: Icons.bluetooth,
+      ),
     ],
   ),
 ];
@@ -421,4 +435,7 @@ final Map<String, Widget Function()> _realPanels = {
   'lte_module': () => const LteModulePanel(),
   // STM32
   'f746_disco': () => const F746DiscoPanel(),
+  'f746_wifi': () => const F746WifiPanel(),
+  'f746_ble': () => const F746BlePanel(),
+  'stm32_wifi_bt': () => const F746DiscoPanel(initialTab: 'wifi'),
 };

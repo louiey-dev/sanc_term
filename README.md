@@ -123,6 +123,8 @@ at NORDIC nRF/Thingy:53
   - version info added at title bar
 - 2026.07.27
   - add STM32F746G-DISCO panel
+- 2026.07.30
+  - add F746 wiFi/BLE panel
 
 ## Info
 
