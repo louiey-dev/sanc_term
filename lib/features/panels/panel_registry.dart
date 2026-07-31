@@ -45,6 +45,7 @@ import 'package:sanc_term/features/panels/lte/lte_module.dart';
 import 'package:sanc_term/features/panels/stm32/f746_disco.dart';
 import 'package:sanc_term/features/panels/stm32/f746_disco_ble.dart';
 import 'package:sanc_term/features/panels/stm32/f746_disco_wifi.dart';
+import 'package:sanc_term/features/panels/customs/fire_cam.dart';
 
 const panelGroups = [
   PanelGroup(
@@ -368,6 +369,20 @@ const panelGroups = [
         label: 'F746 BLE',
         description: 'Bluetooth Low Energy panel',
         icon: Icons.bluetooth,
+        isHidden: true,
+      ),
+    ],
+  ),
+  PanelGroup(
+    title: 'CUSTOMS',
+    icon: Icons.dashboard_customize,
+    items: [
+      PanelEntry(
+        id: 'fire_cam',
+        label: 'Fire Cam',
+        description: 'Thermal & Fire Camera controls',
+        icon: Icons.local_fire_department,
+        isHidden: true,
       ),
     ],
   ),
@@ -375,11 +390,26 @@ const panelGroups = [
 
 // Derived from panelGroups — every panel defaults to a StubPanel. Add a real
 // builder to [_realPanels] below to override the stub for that id.
-final Map<String, Widget Function()> panelRegistry = {
+Map<String, Widget Function()> get panelRegistry => {
   for (final group in panelGroups)
     for (final entry in group.items) entry.id: () => StubPanel(entry: entry),
   ..._realPanels,
 };
+
+/// Returns true if a panel or its parent group is marked as hidden.
+bool isPanelHidden(String id) {
+  for (final group in panelGroups) {
+    if (group.isHidden && group.items.any((e) => e.id == id)) {
+      return true;
+    }
+    for (final entry in group.items) {
+      if (entry.id == id && entry.isHidden) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 /// Ids that have a real implementation. These override the stub above.
 final Map<String, Widget Function()> _realPanels = {
@@ -438,4 +468,6 @@ final Map<String, Widget Function()> _realPanels = {
   'f746_wifi': () => const F746WifiPanel(),
   'f746_ble': () => const F746BlePanel(),
   'stm32_wifi_bt': () => const F746DiscoPanel(initialTab: 'wifi'),
+  // Customs
+  'fire_cam': () => const FireCamPanel(),
 };

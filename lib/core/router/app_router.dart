@@ -5,6 +5,7 @@ import 'package:hive_ce/hive.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/features/home/home_screen.dart';
+import 'package:sanc_term/features/home/widgets/menu_sidebar.dart';
 import 'package:sanc_term/features/panels/common/not_found_panel.dart';
 import 'package:sanc_term/features/panels/panel_registry.dart';
 
@@ -13,7 +14,16 @@ part 'app_router.g.dart';
 @Riverpod(keepAlive: true)
 GoRouter appRouter(Ref ref) {
   final box = Hive.box<String>('app_settings');
-  final lastRoute = box.get('last_route', defaultValue: '/home') ?? '/home';
+  var lastRoute = box.get('last_route', defaultValue: '/home') ?? '/home';
+  final isUnlocked = ref.watch(secretPanelsUnlockedProvider);
+
+  // If lastRoute points to a hidden panel and secret panels are locked, reset initial location to /home
+  if (lastRoute.startsWith('/home/panel/')) {
+    final panelId = lastRoute.substring('/home/panel/'.length);
+    if (isPanelHidden(panelId) && !isUnlocked) {
+      lastRoute = '/home';
+    }
+  }
 
   final router = GoRouter(
     initialLocation: lastRoute,
@@ -35,6 +45,15 @@ GoRouter appRouter(Ref ref) {
             path: '/home/panel/:panelId',
             builder: (ctx, state) {
               final id = state.pathParameters['panelId']!;
+              final isUnlocked = ref.watch(secretPanelsUnlockedProvider);
+              if (isPanelHidden(id) && !isUnlocked) {
+                return Center(
+                  child: Text(
+                    'Select a panel',
+                    style: TextStyle(color: ctx.colors.muted),
+                  ),
+                );
+              }
               return panelRegistry[id]?.call() ?? NotFoundPanel(panelId: id);
             },
           ),

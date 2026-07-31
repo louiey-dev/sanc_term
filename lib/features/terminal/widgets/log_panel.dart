@@ -18,7 +18,10 @@ import 'package:sanc_term/features/terminal/providers/terminal_credentials_provi
 import 'package:sanc_term/features/panels/bluetooth/providers/ble_notifier.dart';
 import 'package:sanc_term/features/panels/common/board_command.dart';
 import 'package:sanc_term/services/ble_service.dart';
+import 'package:sanc_term/core/router/app_router.dart';
+import 'package:sanc_term/features/panels/panel_registry.dart';
 import 'package:sanc_term/services/file_logger_service.dart';
+import 'package:sanc_term/features/home/widgets/menu_sidebar.dart';
 
 class LogPanel extends ConsumerStatefulWidget {
   const LogPanel({super.key});
@@ -748,6 +751,30 @@ class _CredentialsFieldsState extends ConsumerState<_CredentialsFields> {
     super.dispose();
   }
 
+  void _checkSecretPassword(String val) {
+    final cmd = val.trim().toLowerCase();
+    if (cmd == 'unlock') {
+      if (!ref.read(secretPanelsUnlockedProvider)) {
+        ref.read(secretPanelsUnlockedProvider.notifier).state = true;
+      }
+    } else if (cmd == 'lock') {
+      if (ref.read(secretPanelsUnlockedProvider)) {
+        ref.read(secretPanelsUnlockedProvider.notifier).state = false;
+
+        // Reset navigation to default /home screen if viewing a hidden panel
+        final router = ref.read(appRouterProvider);
+        final location =
+            router.routerDelegate.currentConfiguration.uri.toString();
+        if (location.startsWith('/home/panel/')) {
+          final activeId = location.substring('/home/panel/'.length);
+          if (isPanelHidden(activeId)) {
+            router.go('/home');
+          }
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
@@ -822,6 +849,7 @@ class _CredentialsFieldsState extends ConsumerState<_CredentialsFields> {
           onChanged: (val) => ref
               .read(terminalCredentialsNotifierProvider.notifier)
               .updatePassword(val),
+          onSubmitted: (val) => _checkSecretPassword(val),
         ),
       ],
     );
@@ -832,6 +860,7 @@ class _CredentialsFieldsState extends ConsumerState<_CredentialsFields> {
     required String hintText,
     required double width,
     required ValueChanged<String> onChanged,
+    ValueChanged<String>? onSubmitted,
     bool obscureText = false,
   }) {
     final c = context.colors;
@@ -842,6 +871,7 @@ class _CredentialsFieldsState extends ConsumerState<_CredentialsFields> {
         controller: controller,
         obscureText: obscureText,
         onChanged: onChanged,
+        onSubmitted: onSubmitted,
         style: TextStyle(
           fontFamily: 'Consolas',
           fontSize: 11,

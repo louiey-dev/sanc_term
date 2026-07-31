@@ -1,21 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/features/panels/models/panel_entry.dart';
 import 'package:sanc_term/features/panels/panel_registry.dart';
 
-class MenuSidebar extends StatelessWidget {
+final secretPanelsUnlockedProvider = StateProvider<bool>((ref) => false);
+
+class MenuSidebar extends ConsumerWidget {
   const MenuSidebar({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
+    final isUnlocked = ref.watch(secretPanelsUnlockedProvider);
     final location = GoRouterState.of(context).uri.toString();
     final activePanelId = location.startsWith('/home/panel/')
         ? location.substring('/home/panel/'.length)
         : null;
 
-    final hasAnyActiveGroup = panelGroups.any(
+    final visibleGroups = panelGroups
+        .where((group) => !group.isHidden || isUnlocked)
+        .map((group) {
+          final visibleItems =
+              group.items
+                  .where((item) => !item.isHidden || isUnlocked)
+                  .toList();
+          return PanelGroup(
+            title: group.title,
+            icon: group.icon,
+            items: visibleItems,
+            isHidden: group.isHidden,
+          );
+        })
+        .where((group) => group.items.isNotEmpty)
+        .toList();
+
+    final hasAnyActiveGroup = visibleGroups.any(
       (group) => group.items.any((e) => e.id == activePanelId),
     );
 
@@ -27,14 +48,16 @@ class MenuSidebar extends StatelessWidget {
       ),
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: panelGroups.length,
+        itemCount: visibleGroups.length,
         itemBuilder: (context, groupIndex) {
-          final group = panelGroups[groupIndex];
+          final group = visibleGroups[groupIndex];
           final isGroupActive = group.items.any((e) => e.id == activePanelId);
           final shouldExpand = isGroupActive || (!hasAnyActiveGroup && groupIndex == 0);
 
           return Theme(
-            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            data: Theme.of(context).copyWith(
+              dividerColor: Colors.transparent,
+            ),
             child: ExpansionTile(
               key: PageStorageKey('group_${group.title}'),
               initiallyExpanded: shouldExpand,
@@ -59,6 +82,10 @@ class MenuSidebar extends StatelessWidget {
                       letterSpacing: 2,
                     ),
                   ),
+                  if (group.isHidden) ...[
+                    const SizedBox(width: 4),
+                    Icon(Icons.visibility_off, size: 10, color: c.muted),
+                  ],
                 ],
               ),
               children: group.items
