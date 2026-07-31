@@ -36,8 +36,11 @@ class _LogPanelState extends ConsumerState<LogPanel> {
   late final BoardConsoleRegistry _registry;
 
   /// BLE notification feeds, one per `ble`-type tab (keyed by tab id).
-  final Map<String, StreamSubscription<({String characteristicId, Uint8List value})>>
-      _bleSubs = {};
+  final Map<
+    String,
+    StreamSubscription<({String characteristicId, Uint8List value})>
+  >
+  _bleSubs = {};
 
   @override
   void initState() {
@@ -149,11 +152,14 @@ class _LogPanelState extends ConsumerState<LogPanel> {
       };
       tab.terminal.onResize = (w, h, pw, ph) {
         _ptyResizeDebouncers[tab.id]?.cancel();
-        _ptyResizeDebouncers[tab.id] = Timer(const Duration(milliseconds: 100), () {
-          try {
-            pty.resize(h, w);
-          } catch (_) {}
-        });
+        _ptyResizeDebouncers[tab.id] = Timer(
+          const Duration(milliseconds: 100),
+          () {
+            try {
+              pty.resize(h, w);
+            } catch (_) {}
+          },
+        );
       };
     } catch (e) {
       tab.terminal.write('Failed to start PTY: $e\r\n');
@@ -177,7 +183,9 @@ class _LogPanelState extends ConsumerState<LogPanel> {
     // opened mid-connection.
     final st = ref.read(bleNotifierProvider);
     if (st.isConnected) {
-      final mtu = st.mtu == null ? '' : ' · MTU ${st.mtu} (payload ${st.mtu! - 3})';
+      final mtu = st.mtu == null
+          ? ''
+          : ' · MTU ${st.mtu} (payload ${st.mtu! - 3})';
       tab.terminal.write('--- connected$mtu ---\r\n');
       for (final c in st.subscribed) {
         tab.terminal.write('--- subscribed ${_bleSourceLabel(c)} ---\r\n');
@@ -198,8 +206,9 @@ class _LogPanelState extends ConsumerState<LogPanel> {
           : '';
       // Normalize newlines, then tag every line with its source so packets from
       // different characteristics stay recognizable when interleaved.
-      final raw =
-          utf8.decode(e.value, allowMalformed: true).replaceAll('\r\n', '\n');
+      final raw = utf8
+          .decode(e.value, allowMalformed: true)
+          .replaceAll('\r\n', '\n');
       final body = raw.endsWith('\n') ? raw.substring(0, raw.length - 1) : raw;
       final text = '${body.split('\n').map((l) => '$label$l').join('\n')}\n';
       tab.terminal.write(text.replaceAll('\n', '\r\n'));
@@ -450,8 +459,7 @@ class _TerminalPane extends ConsumerWidget {
                 if (tab.type == TerminalTabType.ble)
                   Builder(
                     builder: (context) {
-                      final showId =
-                          ref.watch(bleShowSourceIdProvider(tab.id));
+                      final showId = ref.watch(bleShowSourceIdProvider(tab.id));
                       return _MiniBtn(
                         icon: Icons.tag,
                         tooltip: showId
@@ -494,6 +502,8 @@ class _TerminalPane extends ConsumerWidget {
               backgroundOpacity: 0.0,
               padding: const EdgeInsets.all(8),
               onSecondaryTapDown: (d, o) => _handleRightClick(tab),
+              hardwareKeyboardOnly:
+                  true, // Prevents key event collisions in Debug mode
             ),
           ),
         ],

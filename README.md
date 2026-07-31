@@ -125,6 +125,9 @@ at NORDIC nRF/Thingy:53
   - add STM32F746G-DISCO panel
 - 2026.07.30
   - add F746 wiFi/BLE panel
+  - wifi buttons verified
+- 2026.07.31
+  - add BLE buttons and not verified yet
 
 ## Info
 
