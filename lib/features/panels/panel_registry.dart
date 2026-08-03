@@ -46,6 +46,7 @@ import 'package:sanc_term/features/panels/stm32/f746_disco.dart';
 import 'package:sanc_term/features/panels/stm32/f746_disco_ble.dart';
 import 'package:sanc_term/features/panels/stm32/f746_disco_wifi.dart';
 import 'package:sanc_term/features/panels/customs/fire_cam.dart';
+import 'package:sanc_term/features/panels/customs/rv1106.dart';
 
 const panelGroups = [
   PanelGroup(
@@ -384,6 +385,13 @@ const panelGroups = [
         icon: Icons.local_fire_department,
         isHidden: true,
       ),
+      PanelEntry(
+        id: 'rv1106',
+        label: 'RV1106',
+        description: 'Rockchip RV1106 AI camera controls & ISP/NPU/VPU status',
+        icon: Icons.memory,
+        isHidden: true,
+      ),
     ],
   ),
 ];
@@ -412,7 +420,7 @@ bool isPanelHidden(String id) {
 }
 
 /// Ids that have a real implementation. These override the stub above.
-final Map<String, Widget Function()> _realPanels = {
+Map<String, Widget Function()> get _realPanels => {
   // Common
   'cm_cmd_history': () => const CmCmdHistoryPanel(),
   'cm_general_settings': () => const CmGeneralSettingsPanel(),
@@ -470,4 +478,5 @@ final Map<String, Widget Function()> _realPanels = {
   'stm32_wifi_bt': () => const F746DiscoPanel(initialTab: 'wifi'),
   // Customs
   'fire_cam': () => const FireCamPanel(),
+  'rv1106': () => const Rv1106Panel(),
 };

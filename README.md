@@ -128,6 +128,8 @@ at NORDIC nRF/Thingy:53
   - wifi buttons verified
 - 2026.07.31
   - add BLE buttons and not verified yet
+- 2026.08.03
+  - add CUSTOMS panel which is hidden
 
 ## Info
 

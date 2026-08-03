@@ -18,10 +18,20 @@ class _FireCamPanelState extends ConsumerState<FireCamPanel> {
   final _tempThreshold = TextEditingController(text: '75.0');
   final _customCmd = TextEditingController(text: 'status');
 
+  // TOF Camera Controllers
+  final _tofIntegrationTime = TextEditingController(text: '1000');
+  final _tofMaxDistance = TextEditingController(text: '4000');
+  final _tofCalibDistance = TextEditingController(text: '1000');
+  final _tofCrosstalkVal = TextEditingController(text: '50');
+
   @override
   void dispose() {
     _tempThreshold.dispose();
     _customCmd.dispose();
+    _tofIntegrationTime.dispose();
+    _tofMaxDistance.dispose();
+    _tofCalibDistance.dispose();
+    _tofCrosstalkVal.dispose();
     super.dispose();
   }
 
@@ -195,6 +205,248 @@ class _FireCamPanelState extends ConsumerState<FireCamPanel> {
                       _send(cmd.startsWith('fire_cam ') ? cmd : 'fire_cam $cmd');
                     }
                   },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      MyPanelBody(
+        icon: Icons.sensors,
+        title: 'CUSTOMS — TOF Camera Config',
+        subtitle: 'Time-of-Flight range sensor stream, control & timing parameters',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionLabel('TOF Stream & Control'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _btn(
+                  'TOF Status',
+                  'fire_cam tof status',
+                  'Show TOF sensor status & parameters',
+                  Icons.info_outline,
+                ),
+                _btn(
+                  'Stream Start',
+                  'fire_cam tof stream start',
+                  'Start TOF distance range stream',
+                  Icons.videocam,
+                ),
+                _btn(
+                  'Stream Stop',
+                  'fire_cam tof stream stop',
+                  'Stop TOF distance range stream',
+                  Icons.videocam_off,
+                ),
+                _btn(
+                  'Dump Raw Frame',
+                  'fire_cam tof dump_raw',
+                  'Dump raw TOF range frame data',
+                  Icons.data_object,
+                ),
+                _btn(
+                  'Reset TOF',
+                  'fire_cam tof reset',
+                  'Reset TOF camera hardware module',
+                  Icons.refresh,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _sectionLabel('Timing & Range Parameters'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _inputField(
+                  _tofIntegrationTime,
+                  'Integration (µs)',
+                  width: 140,
+                  hint: '1000',
+                ),
+                PanelActionButton(
+                  icon: Icons.timer,
+                  label: 'Set Integration',
+                  tooltipStr: 'fire_cam tof integration <us>',
+                  onPressed: () {
+                    final val = _tofIntegrationTime.text.trim();
+                    if (val.isNotEmpty) {
+                      _send('fire_cam tof integration $val');
+                    }
+                  },
+                ),
+                _inputField(
+                  _tofMaxDistance,
+                  'Max Dist (mm)',
+                  width: 140,
+                  hint: '4000',
+                ),
+                PanelActionButton(
+                  icon: Icons.straighten,
+                  label: 'Set Max Dist',
+                  tooltipStr: 'fire_cam tof max_dist <mm>',
+                  onPressed: () {
+                    final val = _tofMaxDistance.text.trim();
+                    if (val.isNotEmpty) {
+                      _send('fire_cam tof max_dist $val');
+                    }
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      MyPanelBody(
+        icon: Icons.tune,
+        title: 'CUSTOMS — TOF Camera Calibration',
+        subtitle: 'Distance offset, crosstalk & thermal drift calibration routines',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionLabel('Distance Offset Calibration'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _inputField(
+                  _tofCalibDistance,
+                  'Target Dist (mm)',
+                  width: 140,
+                  hint: '1000',
+                ),
+                PanelActionButton(
+                  icon: Icons.center_focus_strong,
+                  label: 'Calib Offset',
+                  tooltipStr: 'fire_cam tof calib offset <dist_mm>',
+                  onPressed: () {
+                    final val = _tofCalibDistance.text.trim();
+                    if (val.isNotEmpty) {
+                      _send('fire_cam tof calib offset $val');
+                    }
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _sectionLabel('Crosstalk Calibration'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _inputField(
+                  _tofCrosstalkVal,
+                  'Reflectance (%)',
+                  width: 140,
+                  hint: '50',
+                ),
+                PanelActionButton(
+                  icon: Icons.grid_on,
+                  label: 'Calib Crosstalk',
+                  tooltipStr: 'fire_cam tof calib crosstalk <val>',
+                  onPressed: () {
+                    final val = _tofCrosstalkVal.text.trim();
+                    if (val.isNotEmpty) {
+                      _send('fire_cam tof calib crosstalk $val');
+                    }
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _sectionLabel('Calibration Operations'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _btn(
+                  'Zero Point',
+                  'fire_cam tof calib zero',
+                  'Perform zero-point offset calibration',
+                  Icons.exposure_zero,
+                ),
+                _btn(
+                  'Temp Comp',
+                  'fire_cam tof calib temp',
+                  'Calibrate temperature drift compensation',
+                  Icons.thermostat,
+                ),
+                _btn(
+                  'Reset Calib',
+                  'fire_cam tof calib reset',
+                  'Restore factory default calibration',
+                  Icons.restore,
+                ),
+                _btn(
+                  'Save NVRAM',
+                  'fire_cam tof calib save',
+                  'Save calibration parameters to NVRAM',
+                  Icons.save,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      MyPanelBody(
+        icon: Icons.table_chart_outlined,
+        title: 'CUSTOMS — TOF Read Calibration Data',
+        subtitle: 'Read offset, crosstalk, factory ROM & active calibration matrices',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionLabel('Calibration Tables & Memory'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _btn(
+                  'Read Offset',
+                  'fire_cam tof calib read offset',
+                  'Read TOF distance offset calibration data',
+                  Icons.straighten,
+                ),
+                _btn(
+                  'Read Crosstalk',
+                  'fire_cam tof calib read crosstalk',
+                  'Read TOF crosstalk calibration matrix',
+                  Icons.grid_view,
+                ),
+                _btn(
+                  'Read Temp Table',
+                  'fire_cam tof calib read temp',
+                  'Read temperature compensation table',
+                  Icons.thermostat_auto,
+                ),
+                _btn(
+                  'Read Factory',
+                  'fire_cam tof calib read factory',
+                  'Read factory default calibration ROM data',
+                  Icons.factory,
+                ),
+                _btn(
+                  'Read Active',
+                  'fire_cam tof calib read active',
+                  'Read current active calibration parameters',
+                  Icons.memory,
+                ),
+                _btn(
+                  'Dump Matrix',
+                  'fire_cam tof calib read dump',
+                  'Dump full TOF calibration memory table',
+                  Icons.developer_board,
+                ),
+                _btn(
+                  'Dump Raw Data',
+                  'fire_cam tof calib read raw',
+                  'Dump raw TOF sensor & calibration memory data',
+                  Icons.data_array,
                 ),
               ],
             ),
