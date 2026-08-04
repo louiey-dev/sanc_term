@@ -28,7 +28,7 @@ class PanelHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              SelectableText(
                 title,
                 style: TextStyle(
                   fontSize: 16,
@@ -36,7 +36,7 @@ class PanelHeader extends StatelessWidget {
                   color: c.foreground,
                 ),
               ),
-              Text(subtitle, style: TextStyle(fontSize: 11, color: c.muted)),
+              SelectableText(subtitle, style: TextStyle(fontSize: 11, color: c.muted)),
             ],
           ),
         ),
@@ -240,7 +240,7 @@ class MyPanelBody extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  SelectableText(
                     title,
                     style: TextStyle(
                       fontSize: 13,

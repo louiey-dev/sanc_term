@@ -130,6 +130,8 @@ at NORDIC nRF/Thingy:53
   - add BLE buttons and not verified yet
 - 2026.08.03
   - add CUSTOMS panel which is hidden
+- 2026.08.04
+  - add ToF panel
 
 ## Info
 

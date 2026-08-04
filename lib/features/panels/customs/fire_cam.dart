@@ -4,7 +4,7 @@ import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/features/panels/common/board_command.dart';
 import 'package:sanc_term/shared/widgets/panel.dart';
 
-/// CUSTOMS — Fire Camera & Thermal Monitoring Panel
+/// CUSTOMS — Fire Camera & Thermal Monitoring Panel (rv1106_firecam)
 class FireCamPanel extends ConsumerStatefulWidget {
   final bool standalone;
 
@@ -18,20 +18,16 @@ class _FireCamPanelState extends ConsumerState<FireCamPanel> {
   final _tempThreshold = TextEditingController(text: '75.0');
   final _customCmd = TextEditingController(text: 'status');
 
-  // TOF Camera Controllers
-  final _tofIntegrationTime = TextEditingController(text: '1000');
-  final _tofMaxDistance = TextEditingController(text: '4000');
-  final _tofCalibDistance = TextEditingController(text: '1000');
-  final _tofCrosstalkVal = TextEditingController(text: '50');
+  // Audio & Sensor Controllers
+  final _lineoutVolumeCtrl = TextEditingController(text: '80');
+  final _smokeThresholdCtrl = TextEditingController(text: '300');
 
   @override
   void dispose() {
     _tempThreshold.dispose();
     _customCmd.dispose();
-    _tofIntegrationTime.dispose();
-    _tofMaxDistance.dispose();
-    _tofCalibDistance.dispose();
-    _tofCrosstalkVal.dispose();
+    _lineoutVolumeCtrl.dispose();
+    _smokeThresholdCtrl.dispose();
     super.dispose();
   }
 
@@ -77,7 +73,7 @@ class _FireCamPanelState extends ConsumerState<FireCamPanel> {
 
   Widget _sectionLabel(String text) => Padding(
     padding: const EdgeInsets.only(bottom: 6, top: 4),
-    child: Text(
+    child: SelectableText(
       text,
       style: TextStyle(
         fontSize: 12,
@@ -94,7 +90,8 @@ class _FireCamPanelState extends ConsumerState<FireCamPanel> {
       return MyPanel(
         icon: Icons.local_fire_department,
         panelTitle: 'Fire Cam Panel',
-        panelSubtitle: 'Thermal & Fire Camera controls, status & stream',
+        panelSubtitle:
+            'rv1106_firecam custom board controls, dual RGB LEDs, memory & sensors',
         panelActions: const [],
         children: bodies,
       );
@@ -113,46 +110,582 @@ class _FireCamPanelState extends ConsumerState<FireCamPanel> {
   List<Widget> _buildPanelBodies() {
     return [
       MyPanelBody(
-        icon: Icons.local_fire_department,
-        title: 'CUSTOMS — Fire Camera Control',
-        subtitle: 'Thermal imaging, fire detection threshold & sensor stream',
+        icon: Icons.light_mode,
+        title: 'CUSTOMS — Dual RGB LED Control (Action & Status)',
+        subtitle:
+            'Independent Action RGB LED and Status RGB LED color & pattern controls',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionLabel('Camera & Stream Control'),
+            _sectionLabel('Action RGB LED Control'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _btn(
+                  'Red ON',
+                  'echo 1 > /sys/class/leds/action:red/brightness',
+                  'Turn Action Red LED ON',
+                  Icons.circle,
+                ),
+                _btn(
+                  'Red OFF',
+                  'echo 0 > /sys/class/leds/action:red/brightness',
+                  'Turn Action Red LED OFF',
+                  Icons.circle_outlined,
+                ),
+                _btn(
+                  'Green ON',
+                  'echo 1 > /sys/class/leds/action:green/brightness',
+                  'Turn Action Green LED ON',
+                  Icons.circle,
+                ),
+                _btn(
+                  'Green OFF',
+                  'echo 0 > /sys/class/leds/action:green/brightness',
+                  'Turn Action Green LED OFF',
+                  Icons.circle_outlined,
+                ),
+                _btn(
+                  'Blue ON',
+                  'echo 1 > /sys/class/leds/action:blue/brightness',
+                  'Turn Action Blue LED ON',
+                  Icons.circle,
+                ),
+                _btn(
+                  'Blue OFF',
+                  'echo 0 > /sys/class/leds/action:blue/brightness',
+                  'Turn Action Blue LED OFF',
+                  Icons.circle_outlined,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _sectionLabel('Status RGB LED Control'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _btn(
+                  'Red ON',
+                  'echo 1 > /sys/class/leds/status:red/brightness',
+                  'Turn Status Red LED ON',
+                  Icons.circle,
+                ),
+                _btn(
+                  'Red OFF',
+                  'echo 0 > /sys/class/leds/status:red/brightness',
+                  'Turn Status Red LED OFF',
+                  Icons.circle_outlined,
+                ),
+                _btn(
+                  'Green ON',
+                  'echo 1 > /sys/class/leds/status:green/brightness',
+                  'Turn Status Green LED ON',
+                  Icons.circle,
+                ),
+                _btn(
+                  'Green OFF',
+                  'echo 0 > /sys/class/leds/status:green/brightness',
+                  'Turn Status Green LED OFF',
+                  Icons.circle_outlined,
+                ),
+                _btn(
+                  'Blue ON',
+                  'echo 1 > /sys/class/leds/status:blue/brightness',
+                  'Turn Status Blue LED ON',
+                  Icons.circle,
+                ),
+                _btn(
+                  'Blue OFF',
+                  'echo 0 > /sys/class/leds/status:blue/brightness',
+                  'Turn Status Blue LED OFF',
+                  Icons.circle_outlined,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      MyPanelBody(
+        icon: Icons.sd_storage,
+        title: 'CUSTOMS — Memory & Storage Subsystems',
+        subtitle:
+            'DDR SDRAM, eMMC flash & SD Card status, bandwidth & health utilities',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionLabel('DDR SDRAM Memory'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _btn(
+                  'Read Capacity',
+                  'rv1106_firecam ddr info',
+                  'Show DDR SDRAM capacity & memory usage',
+                  Icons.memory,
+                ),
+                _btn(
+                  'Bandwidth Benchmark',
+                  'rv1106_firecam ddr speed',
+                  'Run DDR SDRAM read/write bandwidth benchmark',
+                  Icons.speed,
+                ),
+                _btn(
+                  'Stress Benchmark',
+                  'rv1106_firecam ddr stress',
+                  'Run DDR SDRAM pattern stress benchmark',
+                  Icons.assessment,
+                ),
+                _btn(
+                  'Flush Cache',
+                  'rv1106_firecam ddr drop_caches',
+                  'Flush pagecache, dentries & inodes',
+                  Icons.cleaning_services,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _sectionLabel('eMMC Flash Storage'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _btn(
+                  'Partition Info',
+                  'rv1106_firecam emmc info',
+                  'Show eMMC partition usage & filesystem mount status',
+                  Icons.storage,
+                ),
+                _btn(
+                  'Read Benchmark',
+                  'rv1106_firecam emmc read_speed',
+                  'Measure eMMC sequential read speed',
+                  Icons.download,
+                ),
+                _btn(
+                  'Write Benchmark',
+                  'rv1106_firecam emmc write_speed',
+                  'Measure eMMC sequential write speed',
+                  Icons.upload,
+                ),
+                _btn(
+                  'ExtCSD Health',
+                  'rv1106_firecam emmc health',
+                  'Read eMMC ExtCSD health & wear-level status',
+                  Icons.health_and_safety,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _sectionLabel('SD Card Interface'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _btn(
+                  'Detect Card',
+                  'rv1106_firecam sdcard status',
+                  'Detect SD card insertion & card detect pin state',
+                  Icons.sd_card,
+                ),
+                _btn(
+                  'Mount Filesystem',
+                  'rv1106_firecam sdcard mount',
+                  'Mount SD card partition to /mnt/sdcard',
+                  Icons.folder_zip,
+                ),
+                _btn(
+                  'Unmount Card',
+                  'rv1106_firecam sdcard umount',
+                  'Safely unmount SD card partition',
+                  Icons.eject,
+                ),
+                _btn(
+                  'Speed Benchmark',
+                  'rv1106_firecam sdcard benchmark',
+                  'Measure SD card read/write transfer speed',
+                  Icons.speed,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      MyPanelBody(
+        icon: Icons.lan,
+        title: 'CUSTOMS — Ethernet & Wireless Interfaces',
+        subtitle:
+            'Ethernet MAC/PHY, Wi-Fi 802.11 & Bluetooth LE interface controls',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionLabel('Ethernet Network Interface'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _btn(
+                  'Link & IP Info',
+                  'rv1106_firecam eth info',
+                  'Display Ethernet IP address, MAC & link status',
+                  Icons.lan,
+                ),
+                _btn(
+                  'Ping Gateway',
+                  'rv1106_firecam eth ping_gw',
+                  'Ping default network gateway router',
+                  Icons.network_check,
+                ),
+                _btn(
+                  'PHY Duplex / Speed',
+                  'rv1106_firecam eth phy',
+                  'Read Ethernet PHY autonegotiation speed & duplex mode',
+                  Icons.settings_ethernet,
+                ),
+                _btn(
+                  'DHCP Renew',
+                  'rv1106_firecam eth dhcp',
+                  'Renew DHCP lease for Ethernet interface',
+                  Icons.sync,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _sectionLabel('Wi-Fi 802.11 Interface'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _btn(
+                  'Connection Status',
+                  'rv1106_firecam wifi info',
+                  'Display Wi-Fi connection state, SSID & RSSI signal',
+                  Icons.wifi,
+                ),
+                _btn(
+                  'Scan AP List',
+                  'rv1106_firecam wifi scan',
+                  'Scan surrounding Wi-Fi access points',
+                  Icons.wifi_find,
+                ),
+                _btn(
+                  'Ping Gateway',
+                  'rv1106_firecam wifi ping',
+                  'Ping gateway through Wi-Fi interface',
+                  Icons.network_ping,
+                ),
+                _btn(
+                  'Disconnect AP',
+                  'rv1106_firecam wifi disconnect',
+                  'Disconnect from current Wi-Fi network',
+                  Icons.wifi_off,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _sectionLabel('Bluetooth LE Interface'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _btn(
+                  'Controller Status',
+                  'rv1106_firecam bt info',
+                  'Display Bluetooth HCI controller MAC & state',
+                  Icons.bluetooth,
+                ),
+                _btn(
+                  'Scan LE Devices',
+                  'rv1106_firecam bt scan',
+                  'Scan nearby Bluetooth Low Energy devices',
+                  Icons.bluetooth_searching,
+                ),
+                _btn(
+                  'Start Advertising',
+                  'rv1106_firecam bt adv_start',
+                  'Start BLE beacon advertising mode',
+                  Icons.bluetooth_drive,
+                ),
+                _btn(
+                  'Stop Advertising',
+                  'rv1106_firecam bt adv_stop',
+                  'Stop BLE beacon advertising mode',
+                  Icons.bluetooth_disabled,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      MyPanelBody(
+        icon: Icons.mic,
+        title: 'CUSTOMS — Audio & Environmental Sensors',
+        subtitle:
+            'Microphone capture, Audio Line-out speaker & Smoke Sensor safety monitoring',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionLabel('Microphone Input Capture'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _btn(
+                  'Codec Status',
+                  'rv1106_firecam mic info',
+                  'Show MIC hardware codec gain & sample rate',
+                  Icons.mic,
+                ),
+                _btn(
+                  'Start 3s Capture',
+                  'rv1106_firecam mic rec_start',
+                  'Record 3-second WAV sample from MIC input',
+                  Icons.keyboard_voice,
+                ),
+                _btn(
+                  'Stop Capture',
+                  'rv1106_firecam mic rec_stop',
+                  'Stop ongoing microphone audio capture',
+                  Icons.mic_off,
+                ),
+                _btn(
+                  'Read Sound Level',
+                  'rv1106_firecam mic db_level',
+                  'Read current ambient sound level in dB',
+                  Icons.graphic_eq,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _sectionLabel('Audio Line-Out & Speaker'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _btn(
+                  'Codec Status',
+                  'rv1106_firecam lineout info',
+                  'Show audio line-out codec status & volume level',
+                  Icons.volume_up,
+                ),
+                _btn(
+                  'Play 1kHz Sine',
+                  'rv1106_firecam lineout play_sine',
+                  'Play 1kHz test sine tone through Line-out',
+                  Icons.music_note,
+                ),
+                _btn(
+                  'Play Alarm Siren',
+                  'rv1106_firecam lineout play_siren',
+                  'Play fire alarm siren audio pattern',
+                  Icons.campaign,
+                ),
+                _btn(
+                  'Mute Output',
+                  'rv1106_firecam lineout mute',
+                  'Mute Line-out speaker channel',
+                  Icons.volume_off,
+                ),
+                _btn(
+                  'Unmute Output',
+                  'rv1106_firecam lineout unmute',
+                  'Unmute Line-out speaker channel',
+                  Icons.volume_up,
+                ),
+                _inputField(
+                  _lineoutVolumeCtrl,
+                  'Vol (0..100)',
+                  width: 130,
+                  hint: '80',
+                ),
+                PanelActionButton(
+                  icon: Icons.volume_mute,
+                  label: 'Set Volume',
+                  tooltipStr: 'rv1106_firecam lineout volume <0..100>',
+                  onPressed: () {
+                    final val = _lineoutVolumeCtrl.text.trim();
+                    if (val.isNotEmpty) {
+                      _send('rv1106_firecam lineout volume $val');
+                    }
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _sectionLabel('Smoke Sensor & Environmental Safety'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _btn(
+                  'Read ADC Voltage',
+                  'rv1106_firecam smoke adc',
+                  'Read raw smoke sensor ADC voltage input',
+                  Icons.electric_meter,
+                ),
+                _btn(
+                  'Sensor Status',
+                  'rv1106_firecam smoke status',
+                  'Read smoke sensor concentration & alarm state',
+                  Icons.sensor_door,
+                ),
+                _btn(
+                  'Trigger Buzzer',
+                  'rv1106_firecam smoke buzzer',
+                  'Trigger smoke alarm buzzer hardware alert',
+                  Icons.notification_important,
+                ),
+                _btn(
+                  'Calibrate Zero',
+                  'rv1106_firecam smoke calib',
+                  'Calibrate smoke sensor zero-point baseline',
+                  Icons.tune,
+                ),
+                _inputField(
+                  _smokeThresholdCtrl,
+                  'Smoke Limit',
+                  width: 140,
+                  hint: '300',
+                ),
+                PanelActionButton(
+                  icon: Icons.shield,
+                  label: 'Set Limit',
+                  tooltipStr: 'rv1106_firecam smoke threshold <value>',
+                  onPressed: () {
+                    final val = _smokeThresholdCtrl.text.trim();
+                    if (val.isNotEmpty) {
+                      _send('rv1106_firecam smoke threshold $val');
+                    }
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      MyPanelBody(
+        icon: Icons.psychology,
+        title: 'CUSTOMS — rv1106_firecam Subsystem & AI Menu',
+        subtitle: 'NPU inference engine, RTSP streaming & board power controls',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionLabel('NPU & RTSP Video Streaming'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _btn(
+                  'NPU Load',
+                  'rv1106_firecam npu load',
+                  'Show NPU utilization load',
+                  Icons.query_stats,
+                ),
+                _btn(
+                  'AI Start',
+                  'rv1106_firecam npu detect start',
+                  'Start AI object & fire detection loop',
+                  Icons.play_arrow,
+                ),
+                _btn(
+                  'AI Stop',
+                  'rv1106_firecam npu detect stop',
+                  'Stop AI object & fire detection loop',
+                  Icons.stop,
+                ),
+                _btn(
+                  'RTSP Start',
+                  'rv1106_firecam rtsp start',
+                  'Start RTSP live video server',
+                  Icons.live_tv,
+                ),
+                _btn(
+                  'RTSP Stop',
+                  'rv1106_firecam rtsp stop',
+                  'Stop RTSP live video server',
+                  Icons.portable_wifi_off,
+                ),
+                _btn(
+                  'Reset Board',
+                  'rv1106_firecam reset',
+                  'Reset rv1106_firecam board hardware',
+                  Icons.refresh,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      MyPanelBody(
+        icon: Icons.local_fire_department,
+        title: 'CUSTOMS — Fire Camera Control (rv1106_firecam)',
+        subtitle:
+            'Thermal imaging, fire detection threshold & rv1106_firecam board controls',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionLabel('rv1106_firecam Board & Camera Stream Control'),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 _btn(
                   'Status',
-                  'fire_cam status',
-                  'Show Fire Cam status',
+                  'rv1106_firecam status',
+                  'Show rv1106_firecam status',
                   Icons.info_outline,
                 ),
                 _btn(
                   'Stream Start',
-                  'fire_cam stream start',
+                  'rv1106_firecam stream start',
                   'Start thermal video stream',
                   Icons.videocam,
                 ),
                 _btn(
                   'Stream Stop',
-                  'fire_cam stream stop',
+                  'rv1106_firecam stream stop',
                   'Stop thermal video stream',
                   Icons.videocam_off,
                 ),
                 _btn(
-                  'Calibrate',
-                  'fire_cam calibrate',
+                  'Calibrate Zero',
+                  'rv1106_firecam calibrate',
                   'Calibrate thermal sensor zero-point',
                   Icons.tune,
                 ),
                 _btn(
-                  'Alarm Test',
-                  'fire_cam alarm test',
-                  'Test fire detection alarm trigger',
+                  'Trigger Alarm',
+                  'rv1106_firecam alarm trigger',
+                  'Trigger fire detection alarm action',
                   Icons.warning_amber,
+                ),
+                _btn(
+                  'IRCUT ON',
+                  'rv1106_firecam ircut 1',
+                  'Enable IR-Cut filter (Day Mode)',
+                  Icons.wb_sunny,
+                ),
+                _btn(
+                  'IRCUT OFF',
+                  'rv1106_firecam ircut 0',
+                  'Disable IR-Cut filter (Night Mode)',
+                  Icons.nights_stay,
+                ),
+                _btn(
+                  'ISP Start',
+                  'rv1106_firecam isp start',
+                  'Start ISP video stream pipeline',
+                  Icons.camera_alt,
+                ),
+                _btn(
+                  'ISP Stop',
+                  'rv1106_firecam isp stop',
+                  'Stop ISP video stream pipeline',
+                  Icons.camera,
                 ),
               ],
             ),
@@ -172,281 +705,38 @@ class _FireCamPanelState extends ConsumerState<FireCamPanel> {
                 PanelActionButton(
                   icon: Icons.thermostat,
                   label: 'Set Threshold',
-                  tooltipStr: 'fire_cam temp_threshold <value>',
+                  tooltipStr: 'rv1106_firecam temp_threshold <value>',
                   onPressed: () {
                     final val = _tempThreshold.text.trim();
                     if (val.isNotEmpty) {
-                      _send('fire_cam temp_threshold $val');
+                      _send('rv1106_firecam temp_threshold $val');
                     }
                   },
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            _sectionLabel('Custom Fire Cam Command'),
+            _sectionLabel('Custom rv1106_firecam Command'),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                _inputField(
-                  _customCmd,
-                  'Command',
-                  width: 220,
-                  hint: 'status',
-                ),
+                _inputField(_customCmd, 'Command', width: 240, hint: 'status'),
                 PanelActionButton(
                   icon: Icons.send,
                   label: 'Send Cmd',
-                  tooltipStr: 'Send raw fire_cam command',
+                  tooltipStr: 'Send raw rv1106_firecam command',
                   onPressed: () {
                     final cmd = _customCmd.text.trim();
                     if (cmd.isNotEmpty) {
-                      _send(cmd.startsWith('fire_cam ') ? cmd : 'fire_cam $cmd');
+                      _send(
+                        cmd.startsWith('rv1106_firecam ')
+                            ? cmd
+                            : 'rv1106_firecam $cmd',
+                      );
                     }
                   },
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      MyPanelBody(
-        icon: Icons.sensors,
-        title: 'CUSTOMS — TOF Camera Config',
-        subtitle: 'Time-of-Flight range sensor stream, control & timing parameters',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _sectionLabel('TOF Stream & Control'),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _btn(
-                  'TOF Status',
-                  'fire_cam tof status',
-                  'Show TOF sensor status & parameters',
-                  Icons.info_outline,
-                ),
-                _btn(
-                  'Stream Start',
-                  'fire_cam tof stream start',
-                  'Start TOF distance range stream',
-                  Icons.videocam,
-                ),
-                _btn(
-                  'Stream Stop',
-                  'fire_cam tof stream stop',
-                  'Stop TOF distance range stream',
-                  Icons.videocam_off,
-                ),
-                _btn(
-                  'Dump Raw Frame',
-                  'fire_cam tof dump_raw',
-                  'Dump raw TOF range frame data',
-                  Icons.data_object,
-                ),
-                _btn(
-                  'Reset TOF',
-                  'fire_cam tof reset',
-                  'Reset TOF camera hardware module',
-                  Icons.refresh,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _sectionLabel('Timing & Range Parameters'),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                _inputField(
-                  _tofIntegrationTime,
-                  'Integration (µs)',
-                  width: 140,
-                  hint: '1000',
-                ),
-                PanelActionButton(
-                  icon: Icons.timer,
-                  label: 'Set Integration',
-                  tooltipStr: 'fire_cam tof integration <us>',
-                  onPressed: () {
-                    final val = _tofIntegrationTime.text.trim();
-                    if (val.isNotEmpty) {
-                      _send('fire_cam tof integration $val');
-                    }
-                  },
-                ),
-                _inputField(
-                  _tofMaxDistance,
-                  'Max Dist (mm)',
-                  width: 140,
-                  hint: '4000',
-                ),
-                PanelActionButton(
-                  icon: Icons.straighten,
-                  label: 'Set Max Dist',
-                  tooltipStr: 'fire_cam tof max_dist <mm>',
-                  onPressed: () {
-                    final val = _tofMaxDistance.text.trim();
-                    if (val.isNotEmpty) {
-                      _send('fire_cam tof max_dist $val');
-                    }
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      MyPanelBody(
-        icon: Icons.tune,
-        title: 'CUSTOMS — TOF Camera Calibration',
-        subtitle: 'Distance offset, crosstalk & thermal drift calibration routines',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _sectionLabel('Distance Offset Calibration'),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                _inputField(
-                  _tofCalibDistance,
-                  'Target Dist (mm)',
-                  width: 140,
-                  hint: '1000',
-                ),
-                PanelActionButton(
-                  icon: Icons.center_focus_strong,
-                  label: 'Calib Offset',
-                  tooltipStr: 'fire_cam tof calib offset <dist_mm>',
-                  onPressed: () {
-                    final val = _tofCalibDistance.text.trim();
-                    if (val.isNotEmpty) {
-                      _send('fire_cam tof calib offset $val');
-                    }
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _sectionLabel('Crosstalk Calibration'),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                _inputField(
-                  _tofCrosstalkVal,
-                  'Reflectance (%)',
-                  width: 140,
-                  hint: '50',
-                ),
-                PanelActionButton(
-                  icon: Icons.grid_on,
-                  label: 'Calib Crosstalk',
-                  tooltipStr: 'fire_cam tof calib crosstalk <val>',
-                  onPressed: () {
-                    final val = _tofCrosstalkVal.text.trim();
-                    if (val.isNotEmpty) {
-                      _send('fire_cam tof calib crosstalk $val');
-                    }
-                  },
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _sectionLabel('Calibration Operations'),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _btn(
-                  'Zero Point',
-                  'fire_cam tof calib zero',
-                  'Perform zero-point offset calibration',
-                  Icons.exposure_zero,
-                ),
-                _btn(
-                  'Temp Comp',
-                  'fire_cam tof calib temp',
-                  'Calibrate temperature drift compensation',
-                  Icons.thermostat,
-                ),
-                _btn(
-                  'Reset Calib',
-                  'fire_cam tof calib reset',
-                  'Restore factory default calibration',
-                  Icons.restore,
-                ),
-                _btn(
-                  'Save NVRAM',
-                  'fire_cam tof calib save',
-                  'Save calibration parameters to NVRAM',
-                  Icons.save,
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-      MyPanelBody(
-        icon: Icons.table_chart_outlined,
-        title: 'CUSTOMS — TOF Read Calibration Data',
-        subtitle: 'Read offset, crosstalk, factory ROM & active calibration matrices',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _sectionLabel('Calibration Tables & Memory'),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _btn(
-                  'Read Offset',
-                  'fire_cam tof calib read offset',
-                  'Read TOF distance offset calibration data',
-                  Icons.straighten,
-                ),
-                _btn(
-                  'Read Crosstalk',
-                  'fire_cam tof calib read crosstalk',
-                  'Read TOF crosstalk calibration matrix',
-                  Icons.grid_view,
-                ),
-                _btn(
-                  'Read Temp Table',
-                  'fire_cam tof calib read temp',
-                  'Read temperature compensation table',
-                  Icons.thermostat_auto,
-                ),
-                _btn(
-                  'Read Factory',
-                  'fire_cam tof calib read factory',
-                  'Read factory default calibration ROM data',
-                  Icons.factory,
-                ),
-                _btn(
-                  'Read Active',
-                  'fire_cam tof calib read active',
-                  'Read current active calibration parameters',
-                  Icons.memory,
-                ),
-                _btn(
-                  'Dump Matrix',
-                  'fire_cam tof calib read dump',
-                  'Dump full TOF calibration memory table',
-                  Icons.developer_board,
-                ),
-                _btn(
-                  'Dump Raw Data',
-                  'fire_cam tof calib read raw',
-                  'Dump raw TOF sensor & calibration memory data',
-                  Icons.data_array,
                 ),
               ],
             ),

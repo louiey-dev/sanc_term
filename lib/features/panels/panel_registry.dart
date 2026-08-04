@@ -47,6 +47,7 @@ import 'package:sanc_term/features/panels/stm32/f746_disco_ble.dart';
 import 'package:sanc_term/features/panels/stm32/f746_disco_wifi.dart';
 import 'package:sanc_term/features/panels/customs/fire_cam.dart';
 import 'package:sanc_term/features/panels/customs/rv1106.dart';
+import 'package:sanc_term/features/panels/customs/tof.dart';
 
 const panelGroups = [
   PanelGroup(
@@ -392,6 +393,13 @@ const panelGroups = [
         icon: Icons.memory,
         isHidden: true,
       ),
+      PanelEntry(
+        id: 'tof',
+        label: 'ToF',
+        description: 'Time-of-Flight range sensor controls & calibration',
+        icon: Icons.sensors,
+        isHidden: true,
+      ),
     ],
   ),
 ];
@@ -479,4 +487,5 @@ Map<String, Widget Function()> get _realPanels => {
   // Customs
   'fire_cam': () => const FireCamPanel(),
   'rv1106': () => const Rv1106Panel(),
+  'tof': () => const TofPanel(),
 };
