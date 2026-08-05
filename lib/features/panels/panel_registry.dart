@@ -48,6 +48,7 @@ import 'package:sanc_term/features/panels/stm32/f746_disco_wifi.dart';
 import 'package:sanc_term/features/panels/customs/fire_cam.dart';
 import 'package:sanc_term/features/panels/customs/rv1106.dart';
 import 'package:sanc_term/features/panels/customs/tof.dart';
+import 'package:sanc_term/features/panels/customs/uvc_stream.dart';
 
 const panelGroups = [
   PanelGroup(
@@ -400,6 +401,14 @@ const panelGroups = [
         icon: Icons.sensors,
         isHidden: true,
       ),
+      PanelEntry(
+        id: 'uvc_stream',
+        label: 'UVC Stream Player',
+        description:
+            'USB Video Class (UVC) camera stream player & V4L2 controls',
+        icon: Icons.videocam,
+        isHidden: true,
+      ),
     ],
   ),
 ];
@@ -488,4 +497,5 @@ Map<String, Widget Function()> get _realPanels => {
   'fire_cam': () => const FireCamPanel(),
   'rv1106': () => const Rv1106Panel(),
   'tof': () => const TofPanel(),
+  'uvc_stream': () => const UvcStreamPanel(),
 };

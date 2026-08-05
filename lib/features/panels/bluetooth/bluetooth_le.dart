@@ -14,17 +14,23 @@ class BlePanel extends ConsumerStatefulWidget {
   ConsumerState<BlePanel> createState() => _BlePanelState();
 }
 
+/// Riverpod provider for persisting BLE scan filter text
+final bleScanFilterProvider = StateProvider<String>((ref) => 'sanc_');
+
 class _BlePanelState extends ConsumerState<BlePanel> {
   late final TextEditingController _scanFilterController;
 
   @override
   void initState() {
     super.initState();
-    _scanFilterController = TextEditingController(text: 'sanc_');
+    final savedFilter = ref.read(bleScanFilterProvider);
+    _scanFilterController = TextEditingController(text: savedFilter);
     _scanFilterController.addListener(_onFilterChanged);
   }
 
   void _onFilterChanged() {
+    ref.read(bleScanFilterProvider.notifier).state =
+        _scanFilterController.text;
     if (mounted) setState(() {});
   }
 

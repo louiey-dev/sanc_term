@@ -14,11 +14,55 @@ class CmUdpPanel extends ConsumerStatefulWidget {
   ConsumerState<CmUdpPanel> createState() => _CmUdpPanelState();
 }
 
+/// State model for preserving UDP panel parameters across page transitions
+class CmUdpParamsState {
+  final String ip;
+  final String port;
+  final String localPort;
+  final String message;
+
+  const CmUdpParamsState({
+    this.ip = '127.0.0.1',
+    this.port = '8888',
+    this.localPort = '8888',
+    this.message = '',
+  });
+}
+
+/// Riverpod provider for persisting UDP panel parameter values
+final cmUdpParamsProvider = StateProvider<CmUdpParamsState>(
+  (ref) => const CmUdpParamsState(),
+);
+
 class _CmUdpPanelState extends ConsumerState<CmUdpPanel> {
-  final _ip = TextEditingController(text: '127.0.0.1');
-  final _port = TextEditingController(text: '8888');
-  final _localPort = TextEditingController(text: '8888');
-  final _message = TextEditingController();
+  late final TextEditingController _ip;
+  late final TextEditingController _port;
+  late final TextEditingController _localPort;
+  late final TextEditingController _message;
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = ref.read(cmUdpParamsProvider);
+    _ip = TextEditingController(text: saved.ip);
+    _port = TextEditingController(text: saved.port);
+    _localPort = TextEditingController(text: saved.localPort);
+    _message = TextEditingController(text: saved.message);
+
+    _ip.addListener(_saveParams);
+    _port.addListener(_saveParams);
+    _localPort.addListener(_saveParams);
+    _message.addListener(_saveParams);
+  }
+
+  void _saveParams() {
+    ref.read(cmUdpParamsProvider.notifier).state = CmUdpParamsState(
+      ip: _ip.text,
+      port: _port.text,
+      localPort: _localPort.text,
+      message: _message.text,
+    );
+  }
 
   @override
   void dispose() {

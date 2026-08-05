@@ -14,13 +14,55 @@ class FireCamPanel extends ConsumerStatefulWidget {
   ConsumerState<FireCamPanel> createState() => _FireCamPanelState();
 }
 
-class _FireCamPanelState extends ConsumerState<FireCamPanel> {
-  final _tempThreshold = TextEditingController(text: '75.0');
-  final _customCmd = TextEditingController(text: 'status');
+/// State model for preserving FireCam panel parameters across page transitions
+class FireCamParamsState {
+  final String tempThreshold;
+  final String customCmd;
+  final String lineoutVolume;
+  final String smokeThreshold;
 
-  // Audio & Sensor Controllers
-  final _lineoutVolumeCtrl = TextEditingController(text: '80');
-  final _smokeThresholdCtrl = TextEditingController(text: '300');
+  const FireCamParamsState({
+    this.tempThreshold = '75.0',
+    this.customCmd = 'status',
+    this.lineoutVolume = '80',
+    this.smokeThreshold = '300',
+  });
+}
+
+/// Riverpod provider for persisting FireCam panel parameter values
+final fireCamParamsProvider = StateProvider<FireCamParamsState>(
+  (ref) => const FireCamParamsState(),
+);
+
+class _FireCamPanelState extends ConsumerState<FireCamPanel> {
+  late final TextEditingController _tempThreshold;
+  late final TextEditingController _customCmd;
+  late final TextEditingController _lineoutVolumeCtrl;
+  late final TextEditingController _smokeThresholdCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = ref.read(fireCamParamsProvider);
+    _tempThreshold = TextEditingController(text: saved.tempThreshold);
+    _customCmd = TextEditingController(text: saved.customCmd);
+    _lineoutVolumeCtrl = TextEditingController(text: saved.lineoutVolume);
+    _smokeThresholdCtrl = TextEditingController(text: saved.smokeThreshold);
+
+    _tempThreshold.addListener(_saveParams);
+    _customCmd.addListener(_saveParams);
+    _lineoutVolumeCtrl.addListener(_saveParams);
+    _smokeThresholdCtrl.addListener(_saveParams);
+  }
+
+  void _saveParams() {
+    ref.read(fireCamParamsProvider.notifier).state = FireCamParamsState(
+      tempThreshold: _tempThreshold.text,
+      customCmd: _customCmd.text,
+      lineoutVolume: _lineoutVolumeCtrl.text,
+      smokeThreshold: _smokeThresholdCtrl.text,
+    );
+  }
 
   @override
   void dispose() {

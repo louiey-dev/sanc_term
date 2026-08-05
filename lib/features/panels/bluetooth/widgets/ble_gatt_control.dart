@@ -26,16 +26,58 @@ class BleGattControl extends ConsumerStatefulWidget {
   ConsumerState<BleGattControl> createState() => _BleGattControlState();
 }
 
+/// State model for preserving BLE GATT write/MTU inputs across page transitions
+class BleGattParamsState {
+  final String writeText;
+  final String mtuText;
+  final bool hexMode;
+  final bool writeHex;
+
+  const BleGattParamsState({
+    this.writeText = '',
+    this.mtuText = '247',
+    this.hexMode = false,
+    this.writeHex = false,
+  });
+}
+
+/// Riverpod provider for persisting BLE GATT parameters
+final bleGattParamsProvider = StateProvider<BleGattParamsState>(
+  (ref) => const BleGattParamsState(),
+);
+
 class _BleGattControlState extends ConsumerState<BleGattControl> {
   final _rxScroll = ScrollController();
-  final _write = TextEditingController();
-  final _mtu = TextEditingController(text: '247');
+  late final TextEditingController _write;
+  late final TextEditingController _mtu;
 
   /// Received-data render mode: false = text (UTF-8), true = hex.
-  bool _hexMode = false;
+  late bool _hexMode;
 
   /// Interpret the write field as hex bytes (true) or UTF-8 text (false).
-  bool _writeHex = false;
+  late bool _writeHex;
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = ref.read(bleGattParamsProvider);
+    _write = TextEditingController(text: saved.writeText);
+    _mtu = TextEditingController(text: saved.mtuText);
+    _hexMode = saved.hexMode;
+    _writeHex = saved.writeHex;
+
+    _write.addListener(_saveParams);
+    _mtu.addListener(_saveParams);
+  }
+
+  void _saveParams() {
+    ref.read(bleGattParamsProvider.notifier).state = BleGattParamsState(
+      writeText: _write.text,
+      mtuText: _mtu.text,
+      hexMode: _hexMode,
+      writeHex: _writeHex,
+    );
+  }
 
   @override
   void dispose() {

@@ -4,6 +4,28 @@ import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/features/panels/common/board_command.dart';
 import 'package:sanc_term/shared/widgets/panel.dart';
 
+/// State model for preserving ToF panel parameters across page transitions
+class TofParamsState {
+  final String integrationTime;
+  final String maxDistance;
+  final String calibDistance;
+  final String crosstalkVal;
+  final String customCmd;
+
+  const TofParamsState({
+    this.integrationTime = '1000',
+    this.maxDistance = '4000',
+    this.calibDistance = '1000',
+    this.crosstalkVal = '50',
+    this.customCmd = 'status',
+  });
+}
+
+/// Riverpod provider for persisting ToF panel parameter values
+final tofParamsProvider = StateProvider<TofParamsState>(
+  (ref) => const TofParamsState(),
+);
+
 /// CUSTOMS — Time-of-Flight (ToF) Camera Panel
 class TofPanel extends ConsumerStatefulWidget {
   final bool standalone;
@@ -16,11 +38,38 @@ class TofPanel extends ConsumerStatefulWidget {
 
 class _TofPanelState extends ConsumerState<TofPanel> {
   // TOF Camera Controllers
-  final _tofIntegrationTime = TextEditingController(text: '1000');
-  final _tofMaxDistance = TextEditingController(text: '4000');
-  final _tofCalibDistance = TextEditingController(text: '1000');
-  final _tofCrosstalkVal = TextEditingController(text: '50');
-  final _customCmd = TextEditingController(text: 'status');
+  late final TextEditingController _tofIntegrationTime;
+  late final TextEditingController _tofMaxDistance;
+  late final TextEditingController _tofCalibDistance;
+  late final TextEditingController _tofCrosstalkVal;
+  late final TextEditingController _customCmd;
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = ref.read(tofParamsProvider);
+    _tofIntegrationTime = TextEditingController(text: saved.integrationTime);
+    _tofMaxDistance = TextEditingController(text: saved.maxDistance);
+    _tofCalibDistance = TextEditingController(text: saved.calibDistance);
+    _tofCrosstalkVal = TextEditingController(text: saved.crosstalkVal);
+    _customCmd = TextEditingController(text: saved.customCmd);
+
+    _tofIntegrationTime.addListener(_saveParams);
+    _tofMaxDistance.addListener(_saveParams);
+    _tofCalibDistance.addListener(_saveParams);
+    _tofCrosstalkVal.addListener(_saveParams);
+    _customCmd.addListener(_saveParams);
+  }
+
+  void _saveParams() {
+    ref.read(tofParamsProvider.notifier).state = TofParamsState(
+      integrationTime: _tofIntegrationTime.text,
+      maxDistance: _tofMaxDistance.text,
+      calibDistance: _tofCalibDistance.text,
+      crosstalkVal: _tofCrosstalkVal.text,
+      customCmd: _customCmd.text,
+    );
+  }
 
   @override
   void dispose() {
@@ -92,7 +141,7 @@ class _TofPanelState extends ConsumerState<TofPanel> {
         icon: Icons.sensors,
         panelTitle: 'ToF Panel',
         panelSubtitle:
-            'Time-of-Flight range sensor controls, calibration & stream',
+            'Time-of-Flight range sensor configuration & calibration',
         panelActions: const [],
         children: bodies,
       );
@@ -114,7 +163,7 @@ class _TofPanelState extends ConsumerState<TofPanel> {
         icon: Icons.sensors,
         title: 'CUSTOMS — TOF Camera Config',
         subtitle:
-            'Time-of-Flight range sensor stream, control & timing parameters',
+            'Integration time, max distance threshold & stream control',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -133,30 +182,30 @@ class _TofPanelState extends ConsumerState<TofPanel> {
                   'Stream Start',
                   'fire_cam tof stream start',
                   'Start TOF distance range stream',
-                  Icons.videocam,
+                  Icons.play_arrow,
                 ),
                 _btn(
                   'Stream Stop',
                   'fire_cam tof stream stop',
                   'Stop TOF distance range stream',
-                  Icons.videocam_off,
+                  Icons.stop,
                 ),
                 _btn(
-                  'Dump Raw Frame',
+                  'Dump Raw',
                   'fire_cam tof dump_raw',
                   'Dump raw TOF range frame data',
-                  Icons.data_object,
+                  Icons.receipt_long,
                 ),
                 _btn(
                   'Reset TOF',
                   'fire_cam tof reset',
                   'Reset TOF camera hardware module',
-                  Icons.refresh,
+                  Icons.restart_alt,
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            _sectionLabel('Timing & Range Parameters'),
+            _sectionLabel('TOF Parameters Configuration'),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -164,12 +213,12 @@ class _TofPanelState extends ConsumerState<TofPanel> {
               children: [
                 _inputField(
                   _tofIntegrationTime,
-                  'Integration (µs)',
+                  'Integration (us)',
                   width: 140,
                   hint: '1000',
                 ),
                 PanelActionButton(
-                  icon: Icons.timer,
+                  icon: Icons.tune,
                   label: 'Set Integration',
                   tooltipStr: 'fire_cam tof integration <us>',
                   onPressed: () {
@@ -182,7 +231,7 @@ class _TofPanelState extends ConsumerState<TofPanel> {
                 _inputField(
                   _tofMaxDistance,
                   'Max Dist (mm)',
-                  width: 140,
+                  width: 130,
                   hint: '4000',
                 ),
                 PanelActionButton(
@@ -202,14 +251,14 @@ class _TofPanelState extends ConsumerState<TofPanel> {
         ),
       ),
       MyPanelBody(
-        icon: Icons.tune,
+        icon: Icons.build,
         title: 'CUSTOMS — TOF Camera Calibration',
         subtitle:
-            'Distance offset, crosstalk & thermal drift calibration routines',
+            'Offset distance, crosstalk compensation & zero-point calibration',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionLabel('Distance Offset Calibration'),
+            _sectionLabel('Offset & Crosstalk Calibration'),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -217,8 +266,8 @@ class _TofPanelState extends ConsumerState<TofPanel> {
               children: [
                 _inputField(
                   _tofCalibDistance,
-                  'Target Dist (mm)',
-                  width: 140,
+                  'Calib Dist (mm)',
+                  width: 130,
                   hint: '1000',
                 ),
                 PanelActionButton(
@@ -232,23 +281,14 @@ class _TofPanelState extends ConsumerState<TofPanel> {
                     }
                   },
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _sectionLabel('Crosstalk Calibration'),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
                 _inputField(
                   _tofCrosstalkVal,
-                  'Reflectance (%)',
-                  width: 140,
+                  'Crosstalk Val',
+                  width: 130,
                   hint: '50',
                 ),
                 PanelActionButton(
-                  icon: Icons.grid_on,
+                  icon: Icons.blur_on,
                   label: 'Calib Crosstalk',
                   tooltipStr: 'fire_cam tof calib crosstalk <val>',
                   onPressed: () {
@@ -261,33 +301,33 @@ class _TofPanelState extends ConsumerState<TofPanel> {
               ],
             ),
             const SizedBox(height: 12),
-            _sectionLabel('Calibration Operations'),
+            _sectionLabel('Calibration Commands'),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 _btn(
-                  'Zero Point',
+                  'Zero Calib',
                   'fire_cam tof calib zero',
-                  'Perform zero-point offset calibration',
+                  'Perform zero-distance calibration',
                   Icons.exposure_zero,
                 ),
                 _btn(
                   'Temp Comp',
                   'fire_cam tof calib temp',
-                  'Calibrate temperature drift compensation',
+                  'Run temperature compensation calibration',
                   Icons.thermostat,
                 ),
                 _btn(
                   'Reset Calib',
                   'fire_cam tof calib reset',
-                  'Restore factory default calibration',
+                  'Reset calibration parameters to factory defaults',
                   Icons.restore,
                 ),
                 _btn(
-                  'Save NVRAM',
+                  'Save Calib',
                   'fire_cam tof calib save',
-                  'Save calibration parameters to NVRAM',
+                  'Save current calibration data to non-volatile memory',
                   Icons.save,
                 ),
               ],
@@ -296,14 +336,14 @@ class _TofPanelState extends ConsumerState<TofPanel> {
         ),
       ),
       MyPanelBody(
-        icon: Icons.table_chart_outlined,
+        icon: Icons.fact_check,
         title: 'CUSTOMS — TOF Read Calibration Data',
         subtitle:
-            'Read offset, crosstalk, factory ROM & active calibration matrices',
+            'Inspect factory, active and raw calibration registers',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionLabel('Calibration Tables & Memory'),
+            _sectionLabel('Read Calibration Data'),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -311,44 +351,44 @@ class _TofPanelState extends ConsumerState<TofPanel> {
                 _btn(
                   'Read Offset',
                   'fire_cam tof calib read offset',
-                  'Read TOF distance offset calibration data',
+                  'Read current distance offset calibration parameter',
                   Icons.straighten,
                 ),
                 _btn(
                   'Read Crosstalk',
                   'fire_cam tof calib read crosstalk',
-                  'Read TOF crosstalk calibration matrix',
-                  Icons.grid_view,
+                  'Read active crosstalk compensation table',
+                  Icons.blur_on,
                 ),
                 _btn(
-                  'Read Temp Table',
+                  'Read Temp',
                   'fire_cam tof calib read temp',
-                  'Read temperature compensation table',
-                  Icons.thermostat_auto,
+                  'Read temperature calibration coefficient data',
+                  Icons.thermostat,
                 ),
                 _btn(
                   'Read Factory',
                   'fire_cam tof calib read factory',
-                  'Read factory default calibration ROM data',
-                  Icons.factory,
+                  'Read factory default calibration data set',
+                  Icons.inventory_2,
                 ),
                 _btn(
                   'Read Active',
                   'fire_cam tof calib read active',
-                  'Read current active calibration parameters',
+                  'Read currently active in-memory calibration data',
                   Icons.memory,
                 ),
                 _btn(
-                  'Dump Matrix',
+                  'Dump Calib',
                   'fire_cam tof calib read dump',
-                  'Dump full TOF calibration memory table',
+                  'Dump full raw calibration EEPROM contents',
                   Icons.developer_board,
                 ),
                 _btn(
-                  'Dump Raw Data',
+                  'Read Raw Registers',
                   'fire_cam tof calib read raw',
-                  'Dump raw TOF sensor & calibration memory data',
-                  Icons.data_array,
+                  'Read low-level TOF sensor hardware registers',
+                  Icons.code,
                 ),
               ],
             ),
@@ -358,7 +398,7 @@ class _TofPanelState extends ConsumerState<TofPanel> {
       MyPanelBody(
         icon: Icons.terminal,
         title: 'CUSTOMS — TOF Raw Command Interface',
-        subtitle: 'Execute custom TOF sensor / calibration commands',
+        subtitle: 'Execute custom shell / TOF commands on target',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -371,13 +411,13 @@ class _TofPanelState extends ConsumerState<TofPanel> {
                 _inputField(
                   _customCmd,
                   'Command',
-                  width: 220,
+                  width: 240,
                   hint: 'status',
                 ),
                 PanelActionButton(
                   icon: Icons.send,
                   label: 'Send Cmd',
-                  tooltipStr: 'Send raw TOF command',
+                  tooltipStr: 'Send raw TOF command to board',
                   onPressed: () {
                     final cmd = _customCmd.text.trim();
                     if (cmd.isNotEmpty) {

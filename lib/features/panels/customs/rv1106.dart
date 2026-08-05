@@ -4,6 +4,24 @@ import 'package:sanc_term/core/theme/sanc_term_theme.dart';
 import 'package:sanc_term/features/panels/common/board_command.dart';
 import 'package:sanc_term/shared/widgets/panel.dart';
 
+/// State model for preserving RV1106 panel parameters across page transitions
+class Rv1106ParamsState {
+  final String bitrate;
+  final String npuThreshold;
+  final String customCmd;
+
+  const Rv1106ParamsState({
+    this.bitrate = '2048',
+    this.npuThreshold = '0.50',
+    this.customCmd = 'status',
+  });
+}
+
+/// Riverpod provider for persisting RV1106 panel parameter values
+final rv1106ParamsProvider = StateProvider<Rv1106ParamsState>(
+  (ref) => const Rv1106ParamsState(),
+);
+
 /// CUSTOMS — Rockchip RV1106 AI Camera & Subsystem Control Panel
 class Rv1106Panel extends ConsumerStatefulWidget {
   final bool standalone;
@@ -15,9 +33,30 @@ class Rv1106Panel extends ConsumerStatefulWidget {
 }
 
 class _Rv1106PanelState extends ConsumerState<Rv1106Panel> {
-  final _bitrateCtrl = TextEditingController(text: '2048');
-  final _npuThresholdCtrl = TextEditingController(text: '0.50');
-  final _customCmdCtrl = TextEditingController(text: 'status');
+  late final TextEditingController _bitrateCtrl;
+  late final TextEditingController _npuThresholdCtrl;
+  late final TextEditingController _customCmdCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = ref.read(rv1106ParamsProvider);
+    _bitrateCtrl = TextEditingController(text: saved.bitrate);
+    _npuThresholdCtrl = TextEditingController(text: saved.npuThreshold);
+    _customCmdCtrl = TextEditingController(text: saved.customCmd);
+
+    _bitrateCtrl.addListener(_saveParams);
+    _npuThresholdCtrl.addListener(_saveParams);
+    _customCmdCtrl.addListener(_saveParams);
+  }
+
+  void _saveParams() {
+    ref.read(rv1106ParamsProvider.notifier).state = Rv1106ParamsState(
+      bitrate: _bitrateCtrl.text,
+      npuThreshold: _npuThresholdCtrl.text,
+      customCmd: _customCmdCtrl.text,
+    );
+  }
 
   @override
   void dispose() {

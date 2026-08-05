@@ -14,8 +14,33 @@ class CmCmdHistoryPanel extends ConsumerStatefulWidget {
   ConsumerState<CmCmdHistoryPanel> createState() => _CmCmdHistoryPanelState();
 }
 
+/// State model for preserving Command History input text across page transitions
+class CmCmdHistoryParamsState {
+  final String cmd;
+
+  const CmCmdHistoryParamsState({this.cmd = ''});
+}
+
+/// Riverpod provider for persisting Command History input value
+final cmCmdHistoryParamsProvider = StateProvider<CmCmdHistoryParamsState>(
+  (ref) => const CmCmdHistoryParamsState(),
+);
+
 class _CmCmdHistoryPanelState extends ConsumerState<CmCmdHistoryPanel> {
-  final _cmd = TextEditingController();
+  late final TextEditingController _cmd;
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = ref.read(cmCmdHistoryParamsProvider);
+    _cmd = TextEditingController(text: saved.cmd);
+    _cmd.addListener(_saveParams);
+  }
+
+  void _saveParams() {
+    ref.read(cmCmdHistoryParamsProvider.notifier).state =
+        CmCmdHistoryParamsState(cmd: _cmd.text);
+  }
 
   @override
   void dispose() {

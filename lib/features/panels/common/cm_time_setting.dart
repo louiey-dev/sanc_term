@@ -10,10 +10,42 @@ class CmTimeSettingPanel extends ConsumerStatefulWidget {
   ConsumerState<CmTimeSettingPanel> createState() => _CmTimeSettingPanelState();
 }
 
+/// State model for preserving Time Setting panel parameters across page transitions
+class CmTimeSettingParamsState {
+  final String date;
+  final String tz;
+
+  const CmTimeSettingParamsState({
+    this.date = '2026-01-01 00:00:00',
+    this.tz = 'UTC',
+  });
+}
+
+/// Riverpod provider for persisting Time Setting panel parameter values
+final cmTimeSettingParamsProvider = StateProvider<CmTimeSettingParamsState>(
+  (ref) => const CmTimeSettingParamsState(),
+);
+
 class _CmTimeSettingPanelState extends ConsumerState<CmTimeSettingPanel> {
   // `date -s` expects "YYYY-MM-DD HH:MM:SS".
-  final _date = TextEditingController(text: '2026-01-01 00:00:00');
-  final _tz = TextEditingController(text: 'UTC');
+  late final TextEditingController _date;
+  late final TextEditingController _tz;
+
+  @override
+  void initState() {
+    super.initState();
+    final saved = ref.read(cmTimeSettingParamsProvider);
+    _date = TextEditingController(text: saved.date);
+    _tz = TextEditingController(text: saved.tz);
+
+    _date.addListener(_saveParams);
+    _tz.addListener(_saveParams);
+  }
+
+  void _saveParams() {
+    ref.read(cmTimeSettingParamsProvider.notifier).state =
+        CmTimeSettingParamsState(date: _date.text, tz: _tz.text);
+  }
 
   @override
   void dispose() {
