@@ -133,8 +133,10 @@ at NORDIC nRF/Thingy:53
 - 2026.08.04
   - add ToF panel
 - 2026.08.05
-  - add UVC camera streaming menu panel but not verified its function
+  - add UVC camera streaming menu panel but **not verified** its function
   - update to store current parameters using `Riverpod state providers` so while moving panels, no need to re-write/type parameters
+  - add left main panel folding icon to use wider screen
+  - add WebRTC panel and **not verified**
 
 ## Info
 

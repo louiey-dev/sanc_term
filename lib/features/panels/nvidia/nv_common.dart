@@ -12,8 +12,9 @@ class NvCommonActions extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: [
         PanelActionButton(
           icon: Icons.info_outline,
@@ -25,7 +26,6 @@ class NvCommonActions extends ConsumerWidget {
             'cat /proc/version; cat /etc/os-release',
           ),
         ),
-        const SizedBox(width: 8),
         PanelActionButton(
           icon: Icons.memory,
           label: 'dts model',
@@ -33,7 +33,6 @@ class NvCommonActions extends ConsumerWidget {
           onPressed: () =>
               sendBoardCommand(ref, context, 'cat /proc/device-tree/model'),
         ),
-        const SizedBox(width: 8),
         PanelActionButton(
           icon: Icons.terminal_outlined,
           label: 'nvidia-smi',

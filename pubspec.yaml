@@ -54,6 +54,7 @@ dependencies:
   universal_ble: ^1.2.0
   crypto: ^3.0.6
   archive: ^4.0.2
+  flutter_webrtc: ^0.12.5
 
 dev_dependencies:
   flutter_test:

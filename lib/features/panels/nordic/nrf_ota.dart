@@ -1114,36 +1114,47 @@ class _NrfOtaPanelState extends ConsumerState<NrfOtaPanel> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (_processedFirmware != null) ...[
-                Row(
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 6,
                   children: [
-                    Text(
-                      'MCUboot Header Magic: ',
-                      style: TextStyle(fontSize: 11, color: c.muted),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'MCUboot Header Magic: ',
+                          style: TextStyle(fontSize: 11, color: c.muted),
+                        ),
+                        Text(
+                          _processedFirmware!.header.isValidMagic
+                              ? 'VALID (0x96F3B83D)'
+                              : 'INVALID / MISSING',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: _processedFirmware!.header.isValidMagic
+                                ? Colors.green
+                                : Colors.red,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      _processedFirmware!.header.isValidMagic
-                          ? 'VALID (0x96F3B83D)'
-                          : 'INVALID / MISSING',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: _processedFirmware!.header.isValidMagic
-                            ? Colors.green
-                            : Colors.red,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Text(
-                      'Detected Version: ',
-                      style: TextStyle(fontSize: 11, color: c.muted),
-                    ),
-                    Text(
-                      _processedFirmware!.header.version,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: c.primary,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Detected Version: ',
+                          style: TextStyle(fontSize: 11, color: c.muted),
+                        ),
+                        Text(
+                          _processedFirmware!.header.version,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: c.primary,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1224,8 +1235,10 @@ class _NrfOtaPanelState extends ConsumerState<NrfOtaPanel> {
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                spacing: 12,
+                runSpacing: 4,
                 children: [
                   Text(
                     'Sent: ${(_bytesSent / 1024).toStringAsFixed(1)} / ${((_processedFirmware?.bytes.length ?? 0) / 1024).toStringAsFixed(1)} kB',

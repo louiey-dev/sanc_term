@@ -4,6 +4,7 @@ import 'package:sanc_term/features/panels/common/cm_cmd_history.dart';
 import 'package:sanc_term/features/panels/common/cm_general_settings.dart';
 import 'package:sanc_term/features/panels/common/cm_time_setting.dart';
 import 'package:sanc_term/features/panels/common/cm_udp.dart';
+import 'package:sanc_term/features/panels/common/cm_webrtc.dart';
 import 'package:sanc_term/features/panels/common/stub_panel.dart';
 import 'package:sanc_term/features/panels/diagnostics/dn_cpu.dart';
 import 'package:sanc_term/features/panels/diagnostics/dn_display.dart';
@@ -78,6 +79,12 @@ const panelGroups = [
         label: 'UDP',
         description: 'Send/receive UDP datagrams',
         icon: Icons.wifi_tethering,
+      ),
+      PanelEntry(
+        id: 'cm_webrtc',
+        label: 'WebRTC',
+        description: 'WebRTC stream & P2P DataChannel',
+        icon: Icons.video_call,
       ),
     ],
   ),
@@ -443,6 +450,7 @@ Map<String, Widget Function()> get _realPanels => {
   'cm_general_settings': () => const CmGeneralSettingsPanel(),
   'cm_time_setting': () => const CmTimeSettingPanel(),
   'cm_udp': () => const CmUdpPanel(),
+  'cm_webrtc': () => const CmWebRtcPanel(),
   // Diagnostics
   'dn_power': () => const DnPowerPanel(),
   'dn_cpu': () => const DnCpuPanel(),
