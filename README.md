@@ -140,6 +140,7 @@ at NORDIC nRF/Thingy:53
 - 2026.08.11
   - terminal tab copy is working while scrolling
   - focus on terminal and ctrl+a is copy all context in terminal
+  - terminal max buffer is 10,000 now
 
 ## Info
 
