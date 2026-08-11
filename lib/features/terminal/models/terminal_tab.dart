@@ -4,8 +4,12 @@ import 'package:xterm/xterm.dart';
 enum TerminalTabType { serial, pty, ble }
 
 class TerminalTab {
-  TerminalTab({required this.id, required this.type, required this.label})
-      : terminal = Terminal(),
+  TerminalTab({
+    required this.id,
+    required this.type,
+    required this.label,
+    int maxLines = 10000,
+  })  : terminal = Terminal(maxLines: maxLines),
         controller = TerminalController(),
         focusNode = FocusNode(debugLabel: 'terminal_$id');
 

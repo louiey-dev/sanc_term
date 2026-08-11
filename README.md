@@ -137,6 +137,9 @@ at NORDIC nRF/Thingy:53
   - update to store current parameters using `Riverpod state providers` so while moving panels, no need to re-write/type parameters
   - add left main panel folding icon to use wider screen
   - add WebRTC panel and **not verified**
+- 2026.08.11
+  - terminal tab copy is working while scrolling
+  - focus on terminal and ctrl+a is copy all context in terminal
 
 ## Info
 

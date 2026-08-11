@@ -126,7 +126,15 @@ class _Rv1106PanelState extends ConsumerState<Rv1106Panel> {
         icon: Icons.memory,
         panelTitle: 'RV1106 AI Camera Panel',
         panelSubtitle: 'Rockchip RV1106 ISP, NPU, MPP VPU & IPC controls',
-        panelActions: const [],
+        panelActions: [
+          PanelActionButton(
+            icon: Icons.memory,
+            label: 'dts model',
+            tooltipStr: 'Read device-tree model',
+            onPressed: () =>
+                sendBoardCommand(ref, context, 'cat /proc/device-tree/model'),
+          ),
+        ],
         children: bodies,
       );
     }
@@ -313,7 +321,8 @@ class _Rv1106PanelState extends ConsumerState<Rv1106Panel> {
       MyPanelBody(
         icon: Icons.video_settings,
         title: 'CUSTOMS — RV1106 VPU / MPP & RTSP Stream',
-        subtitle: 'Media Process Platform (MPP), H.264/H.265 VENC & RTSP server',
+        subtitle:
+            'Media Process Platform (MPP), H.264/H.265 VENC & RTSP server',
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
