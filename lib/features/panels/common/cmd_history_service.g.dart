@@ -24,7 +24,7 @@ final cmdHistoryBoxProvider = FutureProvider<Box<String>>.internal(
 // ignore: unused_element
 typedef CmdHistoryBoxRef = FutureProviderRef<Box<String>>;
 String _$cmdHistoryNotifierHash() =>
-    r'f9449db24afa3664fbd9023476448e66fa1e0e0e';
+    r'a8fb204edb58420c99d30434fe40f4e1e1db5f05';
 
 /// See also [CmdHistoryNotifier].
 @ProviderFor(CmdHistoryNotifier)

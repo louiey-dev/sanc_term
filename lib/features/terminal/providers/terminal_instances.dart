@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:sanc_term/features/terminal/models/terminal_tab.dart';
 
+import 'package:sanc_term/features/terminal/providers/paste_settings_provider.dart';
+
 part 'terminal_instances.g.dart';
 
 /// Whether terminal output is paused. When true, panes (serial, PTY, BLE) stop
@@ -22,43 +24,67 @@ class TerminalTabsNotifier extends _$TerminalTabsNotifier {
   int _bleCount = 0;
 
   @override
-  List<TerminalTab> build() => [
-        TerminalTab(id: 'serial_0', type: TerminalTabType.serial, label: 'SERIAL'),
-        TerminalTab(id: 'pty_0', type: TerminalTabType.pty, label: 'PTY'),
-      ];
+  List<TerminalTab> build() {
+    final pasteSettings = ref.read(pasteSettingsNotifierProvider);
+    return [
+      TerminalTab(
+        id: 'serial_0',
+        type: TerminalTabType.serial,
+        label: 'SERIAL',
+        pasteCharDelayMs: pasteSettings.charDelayMs,
+        pasteLineDelayMs: pasteSettings.lineDelayMs,
+      ),
+      TerminalTab(
+        id: 'pty_0',
+        type: TerminalTabType.pty,
+        label: 'PTY',
+        pasteCharDelayMs: pasteSettings.charDelayMs,
+        pasteLineDelayMs: pasteSettings.lineDelayMs,
+      ),
+    ];
+  }
 
   void addSerial() {
     _serialCount++;
+    final pasteSettings = ref.read(pasteSettingsNotifierProvider);
     state = [
       ...state,
       TerminalTab(
         id: 'serial_${DateTime.now().millisecondsSinceEpoch}',
         type: TerminalTabType.serial,
         label: 'SERIAL $_serialCount',
+        pasteCharDelayMs: pasteSettings.charDelayMs,
+        pasteLineDelayMs: pasteSettings.lineDelayMs,
       ),
     ];
   }
 
   void addPty() {
     _ptyCount++;
+    final pasteSettings = ref.read(pasteSettingsNotifierProvider);
     state = [
       ...state,
       TerminalTab(
         id: 'pty_${DateTime.now().millisecondsSinceEpoch}',
         type: TerminalTabType.pty,
         label: 'PTY $_ptyCount',
+        pasteCharDelayMs: pasteSettings.charDelayMs,
+        pasteLineDelayMs: pasteSettings.lineDelayMs,
       ),
     ];
   }
 
   void addBle() {
     _bleCount++;
+    final pasteSettings = ref.read(pasteSettingsNotifierProvider);
     state = [
       ...state,
       TerminalTab(
         id: 'ble_${DateTime.now().millisecondsSinceEpoch}',
         type: TerminalTabType.ble,
         label: _bleCount == 1 ? 'BLE DATA' : 'BLE DATA $_bleCount',
+        pasteCharDelayMs: pasteSettings.charDelayMs,
+        pasteLineDelayMs: pasteSettings.lineDelayMs,
       ),
     ];
   }

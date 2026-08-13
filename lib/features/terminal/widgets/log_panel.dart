@@ -22,6 +22,7 @@ import 'package:sanc_term/core/router/app_router.dart';
 import 'package:sanc_term/features/panels/panel_registry.dart';
 import 'package:sanc_term/services/file_logger_service.dart';
 import 'package:sanc_term/features/home/widgets/menu_sidebar.dart';
+import 'package:sanc_term/features/terminal/providers/paste_settings_provider.dart';
 
 class LogPanel extends ConsumerStatefulWidget {
   const LogPanel({super.key});
@@ -522,7 +523,7 @@ class _TerminalPane extends ConsumerWidget {
       await Clipboard.setData(ClipboardData(text: text));
     } else {
       final data = await Clipboard.getData('text/plain');
-      if (data?.text != null) tab.terminal.paste(data!.text!);
+      if (data?.text != null) await tab.terminal.paste(data!.text!);
     }
   }
 }
@@ -664,6 +665,205 @@ class _Toolbar extends ConsumerWidget {
             tooltip: 'Timestamp each line',
             color: logState.timestampEnabled ? c.primary : c.muted,
             onTap: () => logNotifier.setTimestamp(!logState.timestampEnabled),
+          ),
+          const SizedBox(width: 4),
+          // Paste Delay setting
+          const _PasteDelayBtn(),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _PasteDelayBtn extends ConsumerWidget {
+  const _PasteDelayBtn();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+    final pasteSettings = ref.watch(pasteSettingsNotifierProvider);
+    final pasteNotifier = ref.read(pasteSettingsNotifierProvider.notifier);
+
+    return PopupMenuButton<String>(
+      tooltip: pasteSettings.label,
+      color: c.card,
+      icon: Icon(
+        Icons.speed,
+        size: 16,
+        color: pasteSettings.hasDelay ? c.primary : c.muted,
+      ),
+      iconSize: 16,
+      padding: EdgeInsets.zero,
+      onSelected: (val) {
+        switch (val) {
+          case 'off':
+            pasteNotifier.setPreset(0, 0);
+            break;
+          case 'fast':
+            pasteNotifier.setPreset(5, 0);
+            break;
+          case 'medium':
+            pasteNotifier.setPreset(10, 0);
+            break;
+          case 'slow':
+            pasteNotifier.setPreset(20, 100);
+            break;
+          case 'custom':
+            _showCustomDelayDialog(context, ref);
+            break;
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          enabled: false,
+          height: 28,
+          child: Text(
+            'PASTE DELAY SETTINGS',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.2,
+              color: c.muted,
+            ),
+          ),
+        ),
+        const PopupMenuDivider(height: 4),
+        PopupMenuItem(
+          value: 'off',
+          child: _presetRow(c, 'Off (0 ms)', !pasteSettings.hasDelay),
+        ),
+        PopupMenuItem(
+          value: 'fast',
+          child: _presetRow(
+            c,
+            'Fast (5 ms / char)',
+            pasteSettings.charDelayMs == 5 && pasteSettings.lineDelayMs == 0,
+          ),
+        ),
+        PopupMenuItem(
+          value: 'medium',
+          child: _presetRow(
+            c,
+            'Medium (10 ms / char)',
+            pasteSettings.charDelayMs == 10 && pasteSettings.lineDelayMs == 0,
+          ),
+        ),
+        PopupMenuItem(
+          value: 'slow',
+          child: _presetRow(
+            c,
+            'Slow (20 ms / char, 100 ms / line)',
+            pasteSettings.charDelayMs == 20 && pasteSettings.lineDelayMs == 100,
+          ),
+        ),
+        const PopupMenuDivider(height: 4),
+        PopupMenuItem(
+          value: 'custom',
+          child: Row(
+            children: [
+              Icon(Icons.edit_outlined, size: 14, color: c.muted),
+              const SizedBox(width: 8),
+              Text(
+                'Custom Delay...',
+                style: TextStyle(fontSize: 12, color: c.foreground),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _presetRow(AppColors c, String label, bool isSelected) {
+    return Row(
+      children: [
+        Icon(
+          isSelected ? Icons.check : Icons.circle_outlined,
+          size: 14,
+          color: isSelected ? c.primary : c.muted,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: isSelected ? c.primary : c.foreground,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showCustomDelayDialog(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
+    final current = ref.read(pasteSettingsNotifierProvider);
+    final charCtrl = TextEditingController(text: current.charDelayMs.toString());
+    final lineCtrl = TextEditingController(text: current.lineDelayMs.toString());
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: c.card,
+        title: Text(
+          'Custom Terminal Paste Delay',
+          style: TextStyle(
+            fontSize: 15,
+            color: c.foreground,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Add artificial delay when pasting text to prevent serial/hardware receiver buffer overflow.',
+              style: TextStyle(fontSize: 12, color: c.muted),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: charCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(
+                labelText: 'Char Delay (ms)',
+                hintText: 'e.g. 10',
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: lineCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(
+                labelText: 'Line Delay (ms)',
+                hintText: 'e.g. 100',
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: c.muted)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final charMs = int.tryParse(charCtrl.text) ?? 0;
+              final lineMs = int.tryParse(lineCtrl.text) ?? 0;
+              ref
+                  .read(pasteSettingsNotifierProvider.notifier)
+                  .setPreset(charMs, lineMs);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
           ),
         ],
       ),

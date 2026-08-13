@@ -7,7 +7,7 @@ part of 'terminal_credentials_provider.dart';
 // **************************************************************************
 
 String _$terminalCredentialsBoxHash() =>
-    r'7a3730eb590a8e9631de54d4045a4992faead079';
+    r'd3122a91d9ee33cb6a2feeeb84ebef851ae20c3e';
 
 /// See also [terminalCredentialsBox].
 @ProviderFor(terminalCredentialsBox)
