@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "D:/GIT/GitHub/sanc_term/linux"
+    "cmake.sourceDirectory": "D:/GIT/GitHub/sanc_term/linux",
+    "cmake.configureOnOpen": false
 }
