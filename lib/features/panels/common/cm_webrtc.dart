@@ -280,6 +280,56 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     );
   }
 
+  void _toggleVideoTrack(bool enabled) {
+    ref
+        .read(cmWebRtcParamsProvider.notifier)
+        .update((s) => s.copyWith(enableVideo: enabled));
+
+    // Enable or mute/disable all active video tracks
+    final videoTracks = _remoteRenderer.srcObject?.getVideoTracks();
+    if (videoTracks != null) {
+      for (final track in videoTracks) {
+        track.enabled = enabled;
+      }
+    }
+
+    _peerConnection?.getTransceivers().then((transceivers) {
+      for (final tr in transceivers) {
+        if (tr.receiver.track?.kind == 'video') {
+          tr.receiver.track?.enabled = enabled;
+        }
+      }
+    });
+
+    _addLog('Video track ${enabled ? "ENABLED" : "MUTED/OFF"}.');
+    if (mounted) setState(() {});
+  }
+
+  void _toggleAudioTrack(bool enabled) {
+    ref
+        .read(cmWebRtcParamsProvider.notifier)
+        .update((s) => s.copyWith(enableAudio: enabled));
+
+    // Enable or mute/disable all active audio tracks
+    final audioTracks = _remoteRenderer.srcObject?.getAudioTracks();
+    if (audioTracks != null) {
+      for (final track in audioTracks) {
+        track.enabled = enabled;
+      }
+    }
+
+    _peerConnection?.getTransceivers().then((transceivers) {
+      for (final tr in transceivers) {
+        if (tr.receiver.track?.kind == 'audio') {
+          tr.receiver.track?.enabled = enabled;
+        }
+      }
+    });
+
+    _addLog('Audio track ${enabled ? "ENABLED" : "MUTED/OFF"}.');
+    if (mounted) setState(() {});
+  }
+
   void _addLog(String msg) {
     if (!mounted) return;
     setState(() {
@@ -378,7 +428,9 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
 
     _peerConnection!.onTrack = (event) async {
       _addLog('Track received: ${event.track.kind}');
+      final params = ref.read(cmWebRtcParamsProvider);
       if (event.track.kind == 'video') {
+        event.track.enabled = params.enableVideo;
         if (event.streams.isNotEmpty) {
           setState(() {
             _remoteRenderer.srcObject = event.streams[0];
@@ -394,6 +446,8 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
             _addLog('Error setting up standalone track: $e');
           }
         }
+      } else if (event.track.kind == 'audio') {
+        event.track.enabled = params.enableAudio;
       }
     };
 
@@ -583,7 +637,14 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
       }
 
       // Create Answer
-      final answer = await _peerConnection!.createAnswer();
+      final params = ref.read(cmWebRtcParamsProvider);
+      final answer = await _peerConnection!.createAnswer({
+        'mandatory': {
+          'OfferToReceiveAudio': params.enableAudio,
+          'OfferToReceiveVideo': params.enableVideo,
+        },
+        'optional': [],
+      });
       await _peerConnection!.setLocalDescription(answer);
 
       // Embed gathered candidates directly into Answer SDP for 1-step paste
@@ -760,10 +821,11 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                 final offer = RTCSessionDescription(normalizedSdp, 'offer');
                 await _peerConnection!.setRemoteDescription(offer);
 
+                final params = ref.read(cmWebRtcParamsProvider);
                 final answer = await _peerConnection!.createAnswer({
                   'mandatory': {
-                    'OfferToReceiveAudio': true,
-                    'OfferToReceiveVideo': true,
+                    'OfferToReceiveAudio': params.enableAudio,
+                    'OfferToReceiveVideo': params.enableVideo,
                   },
                   'optional': [],
                 });
@@ -1445,22 +1507,14 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                           'Video Track: ${params.enableVideo ? "ON" : "OFF"}',
                         ),
                         selected: params.enableVideo,
-                        onSelected: (val) {
-                          ref
-                              .read(cmWebRtcParamsProvider.notifier)
-                              .update((s) => s.copyWith(enableVideo: val));
-                        },
+                        onSelected: _toggleVideoTrack,
                       ),
                       FilterChip(
                         label: Text(
                           'Audio Track: ${params.enableAudio ? "ON" : "OFF"}',
                         ),
                         selected: params.enableAudio,
-                        onSelected: (val) {
-                          ref
-                              .read(cmWebRtcParamsProvider.notifier)
-                              .update((s) => s.copyWith(enableAudio: val));
-                        },
+                        onSelected: _toggleAudioTrack,
                       ),
                     ],
                   ),
@@ -1586,39 +1640,71 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                             ],
                           ),
                         )
-                      : (_remoteRenderer.srcObject != null
-                          ? RTCVideoView(
-                              _remoteRenderer,
-                              objectFit:
-                                  RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-                            )
-                          : Center(
+                      : (!params.enableVideo
+                          ? Center(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
-                                    params.isConnected
-                                        ? Icons.videocam
-                                        : Icons.video_camera_front,
+                                  const Icon(
+                                    Icons.videocam_off,
                                     size: 48,
-                                    color: params.isConnected
-                                        ? c.primary
-                                        : Colors.white38,
+                                    color: Colors.white38,
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(
-                                    params.isConnected
-                                        ? 'WebRTC Media Connection Active (DataChannel Only / Waiting for Video Track)'
-                                        : 'Camera Stream Disconnected',
+                                  const Text(
+                                    'Video Track OFF (Muted)',
                                     textAlign: TextAlign.center,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       color: Colors.white70,
                                       fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  const Text(
+                                    'Toggle "Video Track: ON" above to resume video feed',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: Colors.white38,
+                                      fontSize: 11,
                                     ),
                                   ),
                                 ],
                               ),
-                            )),
+                            )
+                          : (_remoteRenderer.srcObject != null
+                              ? RTCVideoView(
+                                  _remoteRenderer,
+                                  objectFit: RTCVideoViewObjectFit
+                                      .RTCVideoViewObjectFitContain,
+                                )
+                              : Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        params.isConnected
+                                            ? Icons.videocam
+                                            : Icons.video_camera_front,
+                                        size: 48,
+                                        color: params.isConnected
+                                            ? c.primary
+                                            : Colors.white38,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        params.isConnected
+                                            ? 'WebRTC Media Connection Active (DataChannel Only / Waiting for Video Track)'
+                                            : 'Camera Stream Disconnected',
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ))),
                 ),
               ),
               // Draggable Resize Handle
