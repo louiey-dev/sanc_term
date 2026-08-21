@@ -27,6 +27,10 @@ CmWebRtcParamsState _loadWebRtcParamsFromHive() {
               ? WebRtcSignalingMode.webBrowser
               : WebRtcSignalingMode.manualSdp);
 
+      final vhStr = box.get('webrtc_viewport_height');
+      final viewportHeight =
+          vhStr != null ? double.tryParse(vhStr) ?? 360.0 : 360.0;
+
       return CmWebRtcParamsState(
         mode: mode,
         signalingUrl:
@@ -37,6 +41,7 @@ CmWebRtcParamsState _loadWebRtcParamsFromHive() {
         stunServer:
             box.get('webrtc_stun_server') ?? 'stun:stun.l.google.com:19302',
         preferredCodec: box.get('webrtc_preferred_codec') ?? 'H264',
+        viewportHeight: viewportHeight,
       );
     }
   } catch (_) {}
@@ -55,6 +60,7 @@ void _saveWebRtcParamsToHive(CmWebRtcParamsState state) {
       box.put('webrtc_peer_id', state.peerId);
       box.put('webrtc_stun_server', state.stunServer);
       box.put('webrtc_preferred_codec', state.preferredCodec);
+      box.put('webrtc_viewport_height', state.viewportHeight.toString());
     }
   } catch (_) {}
 }
@@ -76,6 +82,7 @@ class CmWebRtcParamsState {
   final String localSdpAnswer;
   final String localIceCandidates;
   final String remoteIceCandidates;
+  final double viewportHeight;
 
   const CmWebRtcParamsState({
     this.mode = WebRtcSignalingMode.manualSdp,
@@ -93,6 +100,7 @@ class CmWebRtcParamsState {
     this.localSdpAnswer = '',
     this.localIceCandidates = '',
     this.remoteIceCandidates = '',
+    this.viewportHeight = 360.0,
   });
 
   CmWebRtcParamsState copyWith({
@@ -111,6 +119,7 @@ class CmWebRtcParamsState {
     String? localSdpAnswer,
     String? localIceCandidates,
     String? remoteIceCandidates,
+    double? viewportHeight,
   }) {
     return CmWebRtcParamsState(
       mode: mode ?? this.mode,
@@ -128,6 +137,7 @@ class CmWebRtcParamsState {
       localSdpAnswer: localSdpAnswer ?? this.localSdpAnswer,
       localIceCandidates: localIceCandidates ?? this.localIceCandidates,
       remoteIceCandidates: remoteIceCandidates ?? this.remoteIceCandidates,
+      viewportHeight: viewportHeight ?? this.viewportHeight,
     );
   }
 }
@@ -233,6 +243,43 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     await _remoteRenderer.initialize();
   }
 
+  void _showFullscreenVideo() {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog.fullscreen(
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            Center(
+              child: _remoteRenderer.srcObject != null
+                  ? RTCVideoView(
+                      _remoteRenderer,
+                      objectFit:
+                          RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                    )
+                  : const Center(
+                      child: Text(
+                        'No live video stream connected',
+                        style: TextStyle(color: Colors.white70, fontSize: 16),
+                      ),
+                    ),
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: IconButton.filled(
+                icon: const Icon(Icons.close, color: Colors.white),
+                style: IconButton.styleFrom(backgroundColor: Colors.black54),
+                tooltip: 'Close Fullscreen (Esc)',
+                onPressed: () => Navigator.of(ctx).pop(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _addLog(String msg) {
     if (!mounted) return;
     setState(() {
@@ -329,12 +376,24 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
       _updateConnectionState();
     };
 
-    _peerConnection!.onTrack = (event) {
+    _peerConnection!.onTrack = (event) async {
       _addLog('Track received: ${event.track.kind}');
-      if (event.track.kind == 'video' && event.streams.isNotEmpty) {
-        setState(() {
-          _remoteRenderer.srcObject = event.streams[0];
-        });
+      if (event.track.kind == 'video') {
+        if (event.streams.isNotEmpty) {
+          setState(() {
+            _remoteRenderer.srcObject = event.streams[0];
+          });
+        } else {
+          try {
+            final newStream = await createLocalMediaStream('remote_stream');
+            await newStream.addTrack(event.track);
+            setState(() {
+              _remoteRenderer.srcObject = newStream;
+            });
+          } catch (e) {
+            _addLog('Error setting up standalone track: $e');
+          }
+        }
       }
     };
 
@@ -689,8 +748,10 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                 _peerConnection = null;
                 await _createPeerConnection();
 
-                // Auto-sync target Room ID in UI to sender ID
-                _roomId.text = senderId;
+                // Auto-sync target Room ID in UI if senderId is provided
+                if (senderId.isNotEmpty && senderId != 'null' && senderId != localId) {
+                  _roomId.text = senderId;
+                }
 
                 // Normalize line endings to CRLF (\r\n) without stripping candidate lines
                 final normalizedSdp =
@@ -699,7 +760,13 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                 final offer = RTCSessionDescription(normalizedSdp, 'offer');
                 await _peerConnection!.setRemoteDescription(offer);
 
-                final answer = await _peerConnection!.createAnswer();
+                final answer = await _peerConnection!.createAnswer({
+                  'mandatory': {
+                    'OfferToReceiveAudio': true,
+                    'OfferToReceiveVideo': true,
+                  },
+                  'optional': [],
+                });
                 await _peerConnection!.setLocalDescription(answer);
 
                 // Give 150ms for local ICE candidates to gather and embed in Answer SDP
@@ -721,15 +788,18 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                 fullAnswerSdp =
                     '${fullAnswerSdp.replaceAll('\r\n', '\n').replaceAll('\r', '\n').split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).join('\r\n')}\r\n';
 
-                final answerMsg = jsonEncode({
-                  'id': senderId,
+                final answerMap = <String, dynamic>{
                   'type': 'answer',
                   'description': fullAnswerSdp,
                   'sdp': fullAnswerSdp,
-                });
+                };
+                if (jsonMap.containsKey('id') || (senderId.isNotEmpty && senderId != 'null' && senderId != localId)) {
+                  answerMap['id'] = jsonMap['id'] ?? senderId;
+                }
+                final answerMsg = jsonEncode(answerMap);
                 _wsSocket!.add(answerMsg);
                 _isSignalingDescriptionSent = true;
-                _addLog('Sent SDP Answer via WebSocket to "$senderId".');
+                _addLog('Sent SDP Answer via WebSocket.');
               }
             } else if (type == 'answer') {
               String? sdp;
@@ -807,17 +877,18 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
           }
 
           final activeTargetId = _roomId.text.trim();
-          if (activeTargetId.isNotEmpty &&
-              _wsSocket != null &&
-              _isSignalingDescriptionSent) {
-            final candMsg = jsonEncode({
-              'id': activeTargetId,
+          if (_wsSocket != null && _isSignalingDescriptionSent) {
+            final candMap = <String, dynamic>{
               'type': 'candidate',
               'candidate': candLine,
               'mid': candidate.sdpMid ?? '0',
-            });
+            };
+            if (activeTargetId.isNotEmpty) {
+              candMap['id'] = activeTargetId;
+            }
+            final candMsg = jsonEncode(candMap);
             _wsSocket?.add(candMsg);
-            _addLog('Sent ICE Candidate via WebSocket to "$activeTargetId".');
+            _addLog('Sent ICE Candidate via WebSocket.');
           }
         }
       };
@@ -834,6 +905,38 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
   }
 
   bool _isSignalingDescriptionSent = false;
+
+  Future<void> _requestStreamWebSocket() async {
+    if (_wsSocket == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please connect to WebSocket Signaling Server first.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      if (_peerConnection == null) await _createPeerConnection();
+
+      final reqMap = <String, dynamic>{'type': 'request'};
+      final targetId = _roomId.text.trim();
+      if (targetId.isNotEmpty) {
+        reqMap['id'] = targetId;
+      }
+      final reqMsg = jsonEncode(reqMap);
+      _wsSocket!.add(reqMsg);
+      _addLog('Sent Live Video Stream Request ("$reqMsg") via WebSocket.');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Requested live video stream from server!'),
+        ),
+      );
+    } catch (e) {
+      _addLog('Error requesting video stream: $e');
+    }
+  }
 
   Future<void> _sendOfferWebSocket() async {
     if (_wsSocket == null) {
@@ -1114,10 +1217,17 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                   if (params.mode == WebRtcSignalingMode.webSocket &&
                       _wsSocket != null) ...[
                     PanelActionButton(
+                      icon: Icons.play_circle_filled,
+                      label: 'Request Stream',
+                      tooltipStr:
+                          'Request live video stream from server (Viewer mode)',
+                      onPressed: _requestStreamWebSocket,
+                    ),
+                    PanelActionButton(
                       icon: Icons.send,
                       label: 'Send Offer WS',
                       tooltipStr:
-                          'Send SDP Offer over WebSocket to target peer ID',
+                          'Send SDP Offer over WebSocket to target peer ID (Broadcaster mode)',
                       onPressed: _sendOfferWebSocket,
                     ),
                   ],
@@ -1354,7 +1464,9 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                       ),
                     ],
                   ),
-                  Row(
+                  Wrap(
+                    spacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
                         'Codec: ',
@@ -1378,21 +1490,76 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                           }
                         },
                       ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Height: ',
+                        style: TextStyle(fontSize: 12, color: c.muted),
+                      ),
+                      for (final h in [240.0, 360.0, 480.0, 720.0])
+                        InkWell(
+                          borderRadius: BorderRadius.circular(4),
+                          onTap: () {
+                            final newState = ref
+                                .read(cmWebRtcParamsProvider.notifier)
+                                .update((s) => s.copyWith(viewportHeight: h));
+                            _saveWebRtcParamsToHive(newState);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: params.viewportHeight == h
+                                  ? c.primary.withValues(alpha: 0.2)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: params.viewportHeight == h
+                                    ? c.primary
+                                    : c.border,
+                              ),
+                            ),
+                            child: Text(
+                              '${h.toInt()}p',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: params.viewportHeight == h
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                color: params.viewportHeight == h
+                                    ? c.primary
+                                    : c.foreground,
+                              ),
+                            ),
+                          ),
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.fullscreen, size: 20),
+                        tooltip: 'Fullscreen Video Dialog',
+                        onPressed: _showFullscreenVideo,
+                      ),
                     ],
                   ),
                 ],
               ),
               const SizedBox(height: 12),
               Container(
-                height: 280,
+                height: params.viewportHeight,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   color: Colors.black87,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    topRight: Radius.circular(8),
+                  ),
                   border: Border.all(color: c.border),
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    topRight: Radius.circular(8),
+                  ),
                   child: params.mode == WebRtcSignalingMode.webBrowser
                       ? Center(
                           child: Column(
@@ -1420,7 +1587,11 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                           ),
                         )
                       : (_remoteRenderer.srcObject != null
-                          ? RTCVideoView(_remoteRenderer)
+                          ? RTCVideoView(
+                              _remoteRenderer,
+                              objectFit:
+                                  RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                            )
                           : Center(
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
@@ -1448,6 +1619,64 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                                 ],
                               ),
                             )),
+                ),
+              ),
+              // Draggable Resize Handle
+              GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onVerticalDragUpdate: (details) {
+                  final newHeight = (params.viewportHeight + details.delta.dy)
+                      .clamp(180.0, 960.0);
+                  ref
+                      .read(cmWebRtcParamsProvider.notifier)
+                      .update((s) => s.copyWith(viewportHeight: newHeight));
+                },
+                onVerticalDragEnd: (_) {
+                  _saveWebRtcParamsToHive(ref.read(cmWebRtcParamsProvider));
+                },
+                onDoubleTap: () {
+                  final next =
+                      params.viewportHeight == 360.0 ? 560.0 : 360.0;
+                  final newState = ref
+                      .read(cmWebRtcParamsProvider.notifier)
+                      .update((s) => s.copyWith(viewportHeight: next));
+                  _saveWebRtcParamsToHive(newState);
+                },
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.resizeUpDown,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    decoration: BoxDecoration(
+                      color: c.surface.withValues(alpha: 0.6),
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(8),
+                        bottomRight: Radius.circular(8),
+                      ),
+                      border: Border(
+                        left: BorderSide(color: c.border),
+                        right: BorderSide(color: c.border),
+                        bottom: BorderSide(color: c.border),
+                      ),
+                    ),
+                    child: Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.drag_handle, size: 16, color: c.muted),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${params.viewportHeight.round()}px (Drag to resize height)',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: c.muted,
+                              fontFamily: 'monospace',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
