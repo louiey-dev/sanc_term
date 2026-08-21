@@ -169,6 +169,11 @@ class _NvEthernetPanelState extends ConsumerState<NvEthernetPanel> {
                 () => 'sudo dmesg | grep -i -E "phy|mdio|eqos|rgmii"',
               ),
               _cmd('PHY ID', () => 'cat /sys/class/net/$_if/phydev/phy_id'),
+              _cmd(
+                'Flash AQR chip',
+                () =>
+                    'sudo aq-firmware-tool AQR-G4_v5.6.7-AQR_Marvell_NoSwap_XFI_ID44834_VER1922.cld -i eno1 0',
+              ),
             ],
           ),
         ),
