@@ -149,6 +149,9 @@ at NORDIC nRF/Thingy:53
     - WebRTC video play is work with rv1106 evb2
       - input 'WS URL' at WebSocket Server
       - Connect WS -> Request Stream -> Video play
+- 2026.08.25
+  - add webrtc data channel transfer
+    - text messages, byte array, bin files transfer is verified
 
 ## Info
 

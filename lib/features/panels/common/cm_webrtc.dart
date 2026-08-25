@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +16,12 @@ import '../../../shared/widgets/panel.dart';
 
 /// Signaling modes supported by the panel
 enum WebRtcSignalingMode { manualSdp, webSocket, webBrowser }
+
+/// WebRTC Binary Envelope Protocol Command Identifiers (Option A Header Framing)
+const int kMsgTypeRawByteArray = 0x01;
+const int kMsgTypeFileStart = 0x02;
+const int kMsgTypeFileChunk = 0x03;
+const int kMsgTypeFileEnd = 0x04;
 
 /// Load WebRTC parameters from persistent Hive app_settings box
 CmWebRtcParamsState _loadWebRtcParamsFromHive() {
@@ -31,6 +39,8 @@ CmWebRtcParamsState _loadWebRtcParamsFromHive() {
       final viewportHeight =
           vhStr != null ? double.tryParse(vhStr) ?? 360.0 : 360.0;
 
+      final binaryEnv = box.get('webrtc_binary_envelope') != 'false';
+
       return CmWebRtcParamsState(
         mode: mode,
         signalingUrl:
@@ -42,6 +52,7 @@ CmWebRtcParamsState _loadWebRtcParamsFromHive() {
             box.get('webrtc_stun_server') ?? 'stun:stun.l.google.com:19302',
         preferredCodec: box.get('webrtc_preferred_codec') ?? 'H264',
         viewportHeight: viewportHeight,
+        useBinaryHeaderEnvelope: binaryEnv,
       );
     }
   } catch (_) {}
@@ -61,6 +72,7 @@ void _saveWebRtcParamsToHive(CmWebRtcParamsState state) {
       box.put('webrtc_stun_server', state.stunServer);
       box.put('webrtc_preferred_codec', state.preferredCodec);
       box.put('webrtc_viewport_height', state.viewportHeight.toString());
+      box.put('webrtc_binary_envelope', state.useBinaryHeaderEnvelope.toString());
     }
   } catch (_) {}
 }
@@ -83,6 +95,7 @@ class CmWebRtcParamsState {
   final String localIceCandidates;
   final String remoteIceCandidates;
   final double viewportHeight;
+  final bool useBinaryHeaderEnvelope;
 
   const CmWebRtcParamsState({
     this.mode = WebRtcSignalingMode.manualSdp,
@@ -101,6 +114,7 @@ class CmWebRtcParamsState {
     this.localIceCandidates = '',
     this.remoteIceCandidates = '',
     this.viewportHeight = 360.0,
+    this.useBinaryHeaderEnvelope = true,
   });
 
   CmWebRtcParamsState copyWith({
@@ -120,6 +134,7 @@ class CmWebRtcParamsState {
     String? localIceCandidates,
     String? remoteIceCandidates,
     double? viewportHeight,
+    bool? useBinaryHeaderEnvelope,
   }) {
     return CmWebRtcParamsState(
       mode: mode ?? this.mode,
@@ -138,6 +153,8 @@ class CmWebRtcParamsState {
       localIceCandidates: localIceCandidates ?? this.localIceCandidates,
       remoteIceCandidates: remoteIceCandidates ?? this.remoteIceCandidates,
       viewportHeight: viewportHeight ?? this.viewportHeight,
+      useBinaryHeaderEnvelope:
+          useBinaryHeaderEnvelope ?? this.useBinaryHeaderEnvelope,
     );
   }
 }
@@ -165,11 +182,25 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
   late final TextEditingController _localAnswerCtrl;
   late final TextEditingController _localCandidatesCtrl;
   late final TextEditingController _dataMessage;
+  late final TextEditingController _byteInputCtrl;
+  late final TextEditingController _fileInfoCtrl;
+
+  String? _selectedFilePath;
+  String? _selectedFileName;
+  bool _isSendingFile = false;
+  double _fileSendProgress = 0.0;
 
   final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
   RTCPeerConnection? _peerConnection;
   RTCDataChannel? _dataChannel;
   final List<String> _logs = [];
+
+  Timer? _statsTimer;
+  int _prevAudioPackets = 0;
+  int _prevVideoPackets = 0;
+  int _prevAudioBytes = 0;
+  int _prevVideoBytes = 0;
+  bool _hasRecordedInitialStats = false;
 
   @override
   void initState() {
@@ -189,6 +220,8 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
       text: saved.localIceCandidates,
     );
     _dataMessage = TextEditingController(text: '');
+    _byteInputCtrl = TextEditingController(text: '01 02 03 04 AA BB CC DD');
+    _fileInfoCtrl = TextEditingController(text: '');
 
     _signalingUrl.addListener(_saveParams);
     _webUrlCtrl.addListener(_saveParams);
@@ -341,6 +374,7 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
   @override
   void dispose() {
     _stateTimer?.cancel();
+    _statsTimer?.cancel();
     _webUrlCtrl.dispose();
     _remoteRenderer.dispose();
     _peerConnection?.close();
@@ -354,7 +388,121 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     _localAnswerCtrl.dispose();
     _localCandidatesCtrl.dispose();
     _dataMessage.dispose();
+    _byteInputCtrl.dispose();
+    _fileInfoCtrl.dispose();
     super.dispose();
+  }
+
+  int _parseInt(dynamic val) {
+    if (val == null) return 0;
+    if (val is int) return val;
+    if (val is num) return val.toInt();
+    if (val is String) return int.tryParse(val) ?? 0;
+    return 0;
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB';
+  }
+
+  void _startPacketStatsLogging() {
+    _statsTimer?.cancel();
+    _statsTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      _logWebRtcPacketStats();
+    });
+  }
+
+  Future<void> _logWebRtcPacketStats() async {
+    if (_peerConnection == null) return;
+    try {
+      final reports = await _peerConnection!.getStats();
+      int audioPackets = 0;
+      int videoPackets = 0;
+      int audioBytes = 0;
+      int videoBytes = 0;
+      int audioPacketsLost = 0;
+      int videoPacketsLost = 0;
+      int videoFramesDecoded = 0;
+
+      for (final report in reports) {
+        final type = report.type.toLowerCase();
+        final vals = report.values;
+
+        final isRtpInbound = type == 'inbound-rtp' ||
+            type == 'inboundrtp' ||
+            (type == 'ssrc' &&
+                (vals.containsKey('packetsReceived') ||
+                    report.id.contains('recv') ||
+                    report.id.contains('inbound')));
+
+        if (isRtpInbound) {
+          String? kind = vals['kind']?.toString().toLowerCase() ??
+              vals['mediaType']?.toString().toLowerCase();
+
+          if (kind == null) {
+            final idLower = report.id.toLowerCase();
+            if (idLower.contains('video') ||
+                vals.containsKey('framesDecoded') ||
+                vals.containsKey('framesReceived')) {
+              kind = 'video';
+            } else if (idLower.contains('audio') ||
+                vals.containsKey('audioLevel')) {
+              kind = 'audio';
+            }
+          }
+
+          final pkts = _parseInt(vals['packetsReceived']);
+          final bytes = _parseInt(vals['bytesReceived']);
+          final lost = _parseInt(vals['packetsLost']);
+
+          if (kind == 'audio') {
+            audioPackets += pkts;
+            audioBytes += bytes;
+            audioPacketsLost += lost;
+          } else if (kind == 'video') {
+            videoPackets += pkts;
+            videoBytes += bytes;
+            videoPacketsLost += lost;
+            videoFramesDecoded +=
+                _parseInt(vals['framesDecoded'] ?? vals['framesReceived']);
+          }
+        }
+      }
+
+      final deltaAudioPkts = _hasRecordedInitialStats
+          ? (audioPackets - _prevAudioPackets).clamp(0, 1 << 31)
+          : audioPackets;
+      final deltaVideoPkts = _hasRecordedInitialStats
+          ? (videoPackets - _prevVideoPackets).clamp(0, 1 << 31)
+          : videoPackets;
+      final deltaAudioBytes = _hasRecordedInitialStats
+          ? (audioBytes - _prevAudioBytes).clamp(0, 1 << 31)
+          : audioBytes;
+      final deltaVideoBytes = _hasRecordedInitialStats
+          ? (videoBytes - _prevVideoBytes).clamp(0, 1 << 31)
+          : videoBytes;
+
+      _prevAudioPackets = audioPackets;
+      _prevVideoPackets = videoPackets;
+      _prevAudioBytes = audioBytes;
+      _prevVideoBytes = videoBytes;
+      _hasRecordedInitialStats = true;
+
+      final timestampStr = DateTime.now().toString().split('.').first;
+      final logMsg =
+          '[$timestampStr] [WebRTC 1-min Stats] Packets Received -> '
+          'Audio: $audioPackets packets (+$deltaAudioPkts/min, ${_formatBytes(deltaAudioBytes)}/min, lost: $audioPacketsLost) | '
+          'Video: $videoPackets packets (+$deltaVideoPkts/min, ${_formatBytes(deltaVideoBytes)}/min, decoded: $videoFramesDecoded, lost: $videoPacketsLost)';
+
+      debugPrint(logMsg);
+      _addLog(
+        '[Stats 1m] Packets: Audio=$audioPackets (+$deltaAudioPkts), Video=$videoPackets (+$deltaVideoPkts)',
+      );
+    } catch (e) {
+      debugPrint('[WebRTC Stats Error] Failed to retrieve stats: $e');
+    }
   }
 
   Future<void> _createPeerConnection() async {
@@ -377,6 +525,7 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     };
 
     _peerConnection = await createPeerConnection(configuration, constraints);
+    _startPacketStatsLogging();
 
     final params = ref.read(cmWebRtcParamsProvider);
     if (params.enableVideo) {
@@ -517,7 +666,94 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     };
 
     channel.onMessage = (data) {
-      _addLog('Received Data [${channel.label}]: ${data.text}');
+      if (data.isBinary) {
+        final bytes = data.binary;
+        if (bytes.isNotEmpty) {
+          final type = bytes[0];
+          final bd = ByteData.sublistView(bytes);
+
+          // 0x01: Raw Byte Array / Sensor Data Envelope
+          if (type == kMsgTypeRawByteArray && bytes.length >= 2) {
+            Uint8List payload;
+            if (bytes.length >= 5 &&
+                bd.getUint32(1, Endian.big) == bytes.length - 5) {
+              payload = bytes.sublist(5);
+            } else {
+              payload = bytes.sublist(1);
+            }
+            final hexStr = _formatBytesHex(payload);
+            final asciiPreview = _toPrintableAscii(payload);
+            debugPrint(
+              '[WebRTC DataChannel Received Framed Array [0x01]] [${channel.label}] (Length: ${payload.length} bytes): $hexStr | ASCII: "$asciiPreview"',
+            );
+            _addLog(
+              'Received Framed Array [0x01] [${channel.label}] (${payload.length} bytes): $hexStr',
+            );
+            return;
+          }
+
+          // 0x02: File Transfer Start Envelope
+          if (type == kMsgTypeFileStart && bytes.length >= 8) {
+            final nameLen = bytes[1];
+            if (bytes.length >= 2 + nameLen + 6) {
+              final fileName = utf8.decode(bytes.sublist(2, 2 + nameLen));
+              final fileSize = bd.getUint32(2 + nameLen, Endian.big);
+              final totalChunks = bd.getUint16(2 + nameLen + 4, Endian.big);
+              debugPrint(
+                '[WebRTC DataChannel File Start [0x02]] Filename: "$fileName", Size: $fileSize bytes (${_formatBytes(fileSize)}), Total Chunks: $totalChunks',
+              );
+              _addLog(
+                'Incoming File [0x02]: "$fileName" (${_formatBytes(fileSize)}, $totalChunks chunks)',
+              );
+              return;
+            }
+          }
+
+          // 0x03: File Chunk Envelope
+          if (type == kMsgTypeFileChunk && bytes.length >= 5) {
+            final chunkIndex = bd.getUint16(1, Endian.big);
+            final chunkLen = bd.getUint16(3, Endian.big);
+            final chunkData = bytes.length >= 5 + chunkLen
+                ? bytes.sublist(5, 5 + chunkLen)
+                : bytes.sublist(5);
+            debugPrint(
+              '[WebRTC DataChannel File Chunk [0x03]] Chunk #${chunkIndex + 1} ($chunkLen bytes received, sample: ${_formatBytesHex(chunkData.sublist(0, chunkData.length > 8 ? 8 : chunkData.length))})',
+            );
+            _addLog(
+              'Received File Chunk #${chunkIndex + 1} (${_formatBytes(chunkLen)})',
+            );
+            return;
+          }
+
+          // 0x04: File Transfer Complete Envelope
+          if (type == kMsgTypeFileEnd && bytes.length >= 7) {
+            final totalChunks = bd.getUint16(1, Endian.big);
+            final totalBytes = bd.getUint32(3, Endian.big);
+            debugPrint(
+              '[WebRTC DataChannel File Complete [0x04]] Finished transfer of $totalBytes bytes ($totalChunks chunks).',
+            );
+            _addLog(
+              'File Transfer Complete [0x04]: ${_formatBytes(totalBytes)} in $totalChunks chunks',
+            );
+            return;
+          }
+        }
+
+        // Generic / Raw Unframed Binary Fallback
+        final hexStr = _formatBytesHex(bytes);
+        final asciiPreview = _toPrintableAscii(bytes);
+        debugPrint(
+          '[WebRTC DataChannel Received Binary (Raw)] [${channel.label}] (${bytes.length} bytes): $hexStr | ASCII: "$asciiPreview"',
+        );
+        _addLog(
+          'Received Binary [${channel.label}] (${bytes.length} bytes): $hexStr',
+        );
+      } else {
+        debugPrint(
+          '[WebRTC DataChannel Received Text] [${channel.label}]: ${data.text}',
+        );
+        _addLog('Received Data [${channel.label}]: ${data.text}');
+      }
     };
 
     if (channel.state == RTCDataChannelState.RTCDataChannelOpen) {
@@ -724,14 +960,216 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     }
   }
 
-  void _sendDataMessage() {
+  String _formatBytesHex(Uint8List bytes, {int maxLen = 32}) {
+    final hexParts = bytes
+        .take(maxLen)
+        .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
+        .toList();
+    final suffix =
+        bytes.length > maxLen ? ' ... (+${bytes.length - maxLen} bytes)' : '';
+    return '${hexParts.join(' ')}$suffix';
+  }
+
+  String _toPrintableAscii(Uint8List bytes, {int maxLen = 32}) {
+    final chars = bytes.take(maxLen).map((b) {
+      if (b >= 32 && b <= 126) return String.fromCharCode(b);
+      return '.';
+    }).join();
+    return chars;
+  }
+
+  Uint8List? _parseByteArray(String raw) {
+    var s = raw.trim();
+    if (s.isEmpty) return null;
+
+    s = s
+        .replaceAll('[', '')
+        .replaceAll(']', '')
+        .replaceAll('{', '')
+        .replaceAll('}', '');
+
+    // Comma-separated (e.g. "0x01, 0x02, 0xAA" or "1, 2, 170")
+    if (s.contains(',')) {
+      final tokens = s
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+      final bytes = <int>[];
+      for (final t in tokens) {
+        int? val;
+        if (t.toLowerCase().startsWith('0x')) {
+          val = int.tryParse(t.substring(2), radix: 16);
+        } else {
+          val = int.tryParse(t, radix: 16) ?? int.tryParse(t);
+        }
+        if (val == null || val < 0 || val > 255) return null;
+        bytes.add(val);
+      }
+      return Uint8List.fromList(bytes);
+    }
+
+    // Space-separated or hex prefixes (e.g. "01 02 AA FF" or "\x01\x02\xaa\xff" or "0x01 0x02")
+    if (s.contains(' ') || s.contains('0x') || s.contains(r'\x')) {
+      final tokens = s
+          .replaceAll(r'\x', ' ')
+          .replaceAll('0x', ' ')
+          .split(RegExp(r'\s+'))
+          .where((e) => e.isNotEmpty)
+          .toList();
+      final bytes = <int>[];
+      for (final t in tokens) {
+        final val = int.tryParse(t, radix: 16);
+        if (val == null || val < 0 || val > 255) return null;
+        bytes.add(val);
+      }
+      return Uint8List.fromList(bytes);
+    }
+
+    // Continuous hex string (e.g. "0102AAFF00")
+    if (RegExp(r'^[0-9a-fA-F]+$').hasMatch(s) && s.length % 2 == 0) {
+      final bytes = <int>[];
+      for (int i = 0; i < s.length; i += 2) {
+        final byteStr = s.substring(i, i + 2);
+        final val = int.tryParse(byteStr, radix: 16);
+        if (val == null) return null;
+        bytes.add(val);
+      }
+      return Uint8List.fromList(bytes);
+    }
+
+    return null;
+  }
+
+  Future<bool> _reopenDataChannel() async {
+    if (_peerConnection == null) {
+      _addLog('Cannot reopen DataChannel: PeerConnection is not established.');
+      return false;
+    }
+    try {
+      _addLog(
+        'Re-creating DataChannel "datachannel" on active PeerConnection...',
+      );
+      final dcInit = RTCDataChannelInit()..id = 0;
+      final dc =
+          await _peerConnection!.createDataChannel('datachannel', dcInit);
+      _setupDataChannel(dc);
+      _addLog('New DataChannel created. Waiting for open state...');
+      for (int i = 0; i < 20; i++) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (_safeDataChannelState == RTCDataChannelState.RTCDataChannelOpen) {
+          _addLog('DataChannel successfully reopened and ready for messaging!');
+          return true;
+        }
+      }
+      return _safeDataChannelState == RTCDataChannelState.RTCDataChannelOpen;
+    } catch (e) {
+      _addLog('Error recreating DataChannel: $e');
+      return false;
+    }
+  }
+
+  void _sendByteArray([Uint8List? directBytes]) async {
+    Uint8List bytes;
+    if (directBytes != null) {
+      bytes = directBytes;
+    } else {
+      final raw = _byteInputCtrl.text.trim();
+      if (raw.isEmpty) return;
+      final parsed = _parseByteArray(raw);
+      if (parsed == null || parsed.isEmpty) {
+        _addLog(
+          'Error: Invalid byte array format. Use Hex (e.g. 01 02 AA FF or 0x01, 0x02) or Decimal (1, 2, 170).',
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Invalid byte array format. Example: 01 02 AA FF or 0x01, 0x02',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+      bytes = parsed;
+    }
+
+    var state = _safeDataChannelState;
+    if (_dataChannel == null ||
+        state != RTCDataChannelState.RTCDataChannelOpen) {
+      if (_peerConnection != null) {
+        _addLog('DataChannel is not open (State: "$state"). Attempting auto-reopen...');
+        await _reopenDataChannel();
+        state = _safeDataChannelState;
+      }
+    }
+
+    if (_dataChannel != null &&
+        state == RTCDataChannelState.RTCDataChannelOpen) {
+      try {
+        final params = ref.read(cmWebRtcParamsProvider);
+        Uint8List packetToSend;
+
+        if (params.useBinaryHeaderEnvelope) {
+          // 0x01 (Type Identifier) | Raw Payload
+          packetToSend = Uint8List(1 + bytes.length);
+          packetToSend[0] = kMsgTypeRawByteArray;
+          packetToSend.setRange(1, 1 + bytes.length, bytes);
+        } else {
+          packetToSend = bytes;
+        }
+
+        final msg = RTCDataChannelMessage.fromBinary(packetToSend);
+        _dataChannel!.send(msg);
+        final hexStr = _formatBytesHex(bytes);
+        final tag = params.useBinaryHeaderEnvelope
+            ? 'Framed Binary [0x01]'
+            : 'Raw Binary';
+        debugPrint(
+          '[WebRTC DataChannel] Sent $tag [${_dataChannel!.label}] (${bytes.length} bytes): $hexStr',
+        );
+        _addLog(
+          'Sent $tag [${_dataChannel!.label}] (${bytes.length} bytes): $hexStr',
+        );
+      } catch (e) {
+        _addLog('Error sending binary data over DataChannel: $e');
+      }
+    } else {
+      final curState = state?.name ?? 'closed';
+      _addLog('Cannot send binary. DataChannel state is "$curState".');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'DataChannel is closed (State: $curState). Re-open DataChannel or re-connect.',
+          ),
+        ),
+      );
+    }
+  }
+
+  void _sendDataMessage() async {
     final text = _dataMessage.text.trim();
     if (text.isEmpty) return;
 
-    final state = _safeDataChannelState;
-    if (_dataChannel != null && state == RTCDataChannelState.RTCDataChannelOpen) {
+    var state = _safeDataChannelState;
+    if (_dataChannel == null ||
+        state != RTCDataChannelState.RTCDataChannelOpen) {
+      if (_peerConnection != null) {
+        _addLog('DataChannel is not open (State: "$state"). Attempting auto-reopen...');
+        await _reopenDataChannel();
+        state = _safeDataChannelState;
+      }
+    }
+
+    if (_dataChannel != null &&
+        state == RTCDataChannelState.RTCDataChannelOpen) {
       try {
         _dataChannel!.send(RTCDataChannelMessage(text));
+        debugPrint(
+          '[WebRTC DataChannel] Sent Text [${_dataChannel!.label}]: "$text"',
+        );
         _addLog('Sent Data [${_dataChannel!.label}]: "$text"');
         _dataMessage.clear();
       } catch (e) {
@@ -746,6 +1184,256 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
           content: Text('DataChannel is not open yet (State: $curState).'),
         ),
       );
+    }
+  }
+
+  Future<void> _pickFile({bool loadToHexField = false}) async {
+    try {
+      final result = await FilePicker.pickFiles();
+      if (result == null || result.files.isEmpty) return;
+      final file = result.files.first;
+      final filePath = file.path;
+      if (filePath == null) return;
+
+      setState(() {
+        _selectedFilePath = filePath;
+        _selectedFileName = file.name;
+        _fileInfoCtrl.text = '${file.name} (${_formatBytes(file.size)})';
+      });
+
+      _addLog('Selected file: ${file.name} (${_formatBytes(file.size)})');
+
+      if (loadToHexField) {
+        final f = File(filePath);
+        final bytes = await f.readAsBytes();
+        final previewBytes =
+            bytes.length > 256 ? bytes.sublist(0, 256) : bytes;
+        final hexStr = _formatBytesHex(previewBytes, maxLen: 256);
+        _byteInputCtrl.text = hexStr;
+        _addLog(
+          'Loaded ${bytes.length} file bytes into hex field (previewing ${previewBytes.length} bytes).',
+        );
+      }
+    } catch (e) {
+      _addLog('Error picking file: $e');
+    }
+  }
+
+  Future<void> _sendFile({
+    String mode = 'auto',
+    int chunkSize = 16384,
+  }) async {
+    if (_selectedFilePath == null || !File(_selectedFilePath!).existsSync()) {
+      await _pickFile();
+      if (_selectedFilePath == null) return;
+    }
+
+    var state = _safeDataChannelState;
+    if (_dataChannel == null ||
+        state != RTCDataChannelState.RTCDataChannelOpen) {
+      if (_peerConnection != null) {
+        _addLog(
+          'DataChannel is not open (State: "$state"). Attempting auto-reopen...',
+        );
+        await _reopenDataChannel();
+        state = _safeDataChannelState;
+      }
+    }
+
+    if (_dataChannel == null ||
+        state != RTCDataChannelState.RTCDataChannelOpen) {
+      final curState = state?.name ?? 'closed';
+      _addLog('Cannot send file. DataChannel is not open (State: "$curState").');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'DataChannel is closed (State: $curState). Re-open DataChannel or re-connect.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      final f = File(_selectedFilePath!);
+      final fileName =
+          _selectedFileName ?? f.path.split(Platform.pathSeparator).last;
+      final bytes = await f.readAsBytes();
+      final totalBytes = bytes.length;
+      final params = ref.read(cmWebRtcParamsProvider);
+
+      setState(() {
+        _isSendingFile = true;
+        _fileSendProgress = 0.0;
+      });
+
+      _addLog(
+        'Starting DataChannel transfer for "$fileName" (${_formatBytes(totalBytes)})...',
+      );
+
+      final effectiveMode = mode == 'auto'
+          ? (params.useBinaryHeaderEnvelope
+              ? (totalBytes <= 524288 ? 'single_named' : 'chunked_02')
+              : 'raw')
+          : mode;
+
+      if (effectiveMode == 'single_named') {
+        // [0x02, nameLen (1B), ...nameBytes, ...fileBytes]
+        final nameBytes = utf8.encode(fileName);
+        final nameLen = nameBytes.length.clamp(1, 255);
+        final packetToSend = Uint8List(1 + 1 + nameLen + totalBytes);
+        packetToSend[0] = kMsgTypeFileStart; // 0x02
+        packetToSend[1] = nameLen;
+        packetToSend.setRange(2, 2 + nameLen, nameBytes.sublist(0, nameLen));
+        packetToSend.setRange(2 + nameLen, 2 + nameLen + totalBytes, bytes);
+
+        _dataChannel!.send(RTCDataChannelMessage.fromBinary(packetToSend));
+        if (mounted) setState(() => _fileSendProgress = 1.0);
+
+        final hexSample = _formatBytesHex(
+          bytes.sublist(0, bytes.length > 16 ? 16 : bytes.length),
+        );
+        debugPrint(
+          '[WebRTC DataChannel] Sent File "$fileName" ($totalBytes bytes as [0x02 + Filename + Data], sample: $hexSample)',
+        );
+        _addLog(
+          'File "$fileName" sent successfully ($totalBytes bytes as [0x02 + Filename + Data]).',
+        );
+      } else if (effectiveMode == 'single_unnamed') {
+        // [0x02, ...fileBytes]
+        final packetToSend = Uint8List(1 + totalBytes);
+        packetToSend[0] = kMsgTypeFileStart; // 0x02
+        packetToSend.setRange(1, 1 + totalBytes, bytes);
+
+        _dataChannel!.send(RTCDataChannelMessage.fromBinary(packetToSend));
+        if (mounted) setState(() => _fileSendProgress = 1.0);
+
+        debugPrint(
+          '[WebRTC DataChannel] Sent File "$fileName" ($totalBytes bytes as [0x02 + Data])',
+        );
+        _addLog(
+          'File "$fileName" sent successfully ($totalBytes bytes as [0x02 + Data]).',
+        );
+      } else if (effectiveMode == 'raw') {
+        // Pure raw binary payload (no header)
+        _dataChannel!.send(RTCDataChannelMessage.fromBinary(bytes));
+        if (mounted) setState(() => _fileSendProgress = 1.0);
+
+        debugPrint(
+          '[WebRTC DataChannel] Sent File "$fileName" ($totalBytes bytes pure raw binary)',
+        );
+        _addLog(
+          'File "$fileName" sent successfully ($totalBytes bytes raw binary).',
+        );
+      } else if (effectiveMode == 'chunked_02') {
+        // Chunks where each chunk is prefixed by 0x02
+        final totalChunks = (totalBytes / chunkSize).ceil().clamp(1, 65535);
+        int sentBytes = 0;
+
+        for (int i = 0; i < totalChunks; i++) {
+          if (!_isSendingFile) break;
+          final start = i * chunkSize;
+          final end = (start + chunkSize).clamp(0, totalBytes);
+          final chunk = bytes.sublist(start, end);
+
+          final packetToSend = Uint8List(1 + chunk.length);
+          packetToSend[0] = kMsgTypeFileStart; // 0x02
+          packetToSend.setRange(1, 1 + chunk.length, chunk);
+
+          _dataChannel!.send(RTCDataChannelMessage.fromBinary(packetToSend));
+          sentBytes += chunk.length;
+
+          if (mounted) {
+            setState(() => _fileSendProgress = sentBytes / totalBytes);
+          }
+          await Future.delayed(const Duration(milliseconds: 10));
+        }
+
+        debugPrint(
+          '[WebRTC DataChannel] Sent File "$fileName" ($totalBytes bytes in $totalChunks chunks with 0x02 header)',
+        );
+        _addLog(
+          'File "$fileName" sent successfully ($totalBytes bytes in $totalChunks chunks with 0x02).',
+        );
+      } else if (effectiveMode == 'multi_chunked') {
+        // Multi-phase protocol: 0x02 Start / 0x03 Chunks / 0x04 End
+        final totalChunks = (totalBytes / chunkSize).ceil().clamp(1, 65535);
+        final nameBytes = utf8.encode(fileName);
+        final nameLen = nameBytes.length.clamp(1, 255);
+        final startPacket = Uint8List(1 + 1 + nameLen + 4 + 2);
+        final bdStart = ByteData.sublistView(startPacket);
+        bdStart.setUint8(0, kMsgTypeFileStart);
+        bdStart.setUint8(1, nameLen);
+        startPacket.setRange(2, 2 + nameLen, nameBytes.sublist(0, nameLen));
+        bdStart.setUint32(2 + nameLen, totalBytes, Endian.big);
+        bdStart.setUint16(2 + nameLen + 4, totalChunks, Endian.big);
+
+        _dataChannel!.send(RTCDataChannelMessage.fromBinary(startPacket));
+        await Future.delayed(const Duration(milliseconds: 10));
+
+        int sentBytes = 0;
+        for (int i = 0; i < totalChunks; i++) {
+          if (!_isSendingFile) break;
+          final start = i * chunkSize;
+          final end = (start + chunkSize).clamp(0, totalBytes);
+          final chunk = bytes.sublist(start, end);
+
+          final packetToSend = Uint8List(5 + chunk.length);
+          final bdChunk = ByteData.sublistView(packetToSend);
+          bdChunk.setUint8(0, kMsgTypeFileChunk);
+          bdChunk.setUint16(1, i, Endian.big);
+          bdChunk.setUint16(3, chunk.length, Endian.big);
+          packetToSend.setRange(5, 5 + chunk.length, chunk);
+
+          _dataChannel!.send(RTCDataChannelMessage.fromBinary(packetToSend));
+          sentBytes += chunk.length;
+
+          if (mounted) {
+            setState(() => _fileSendProgress = sentBytes / totalBytes);
+          }
+          await Future.delayed(const Duration(milliseconds: 10));
+        }
+
+        final endPacket = Uint8List(7);
+        final bdEnd = ByteData.sublistView(endPacket);
+        bdEnd.setUint8(0, kMsgTypeFileEnd);
+        bdEnd.setUint16(1, totalChunks, Endian.big);
+        bdEnd.setUint32(3, totalBytes, Endian.big);
+        _dataChannel!.send(RTCDataChannelMessage.fromBinary(endPacket));
+
+        debugPrint(
+          '[WebRTC DataChannel] Sent File "$fileName" ($totalBytes bytes in $totalChunks chunks via 0x02/0x03/0x04)',
+        );
+        _addLog(
+          'File "$fileName" sent successfully ($totalBytes bytes in $totalChunks chunks via 0x02/0x03/0x04).',
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'File "$fileName" (${_formatBytes(totalBytes)}) sent over DataChannel!',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[WebRTC DataChannel File Error] $e');
+      _addLog('Error sending file: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send file: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingFile = false;
+        });
+      }
     }
   }
 
@@ -1156,6 +1844,12 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
 
   void _disconnect() {
     _stateTimer?.cancel();
+    _statsTimer?.cancel();
+    _prevAudioPackets = 0;
+    _prevVideoPackets = 0;
+    _prevAudioBytes = 0;
+    _prevVideoBytes = 0;
+    _hasRecordedInitialStats = false;
     _allChannels.clear();
     _wsSocket?.close();
     _wsSocket = null;
@@ -1791,7 +2485,85 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                       .update((s) => s.copyWith(enableDataChannel: val));
                 },
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text(
+                  'Binary Header Protocol (Envelope: 0x01 Array / 0x02 File)',
+                ),
+                subtitle: const Text(
+                  'Uses 0x01 (Byte Array), 0x02 (File Start), 0x03 (File Chunk), 0x04 (File End) headers to distinguish array vs file',
+                ),
+                value: params.useBinaryHeaderEnvelope,
+                onChanged: (val) {
+                  final newState = ref
+                      .read(cmWebRtcParamsProvider.notifier)
+                      .update((s) => s.copyWith(useBinaryHeaderEnvelope: val));
+                  _saveWebRtcParamsToHive(newState);
+                },
+              ),
               const SizedBox(height: 8),
+              // DataChannel Live Status & Reopen Action
+              Row(
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _safeDataChannelState ==
+                              RTCDataChannelState.RTCDataChannelOpen
+                          ? Colors.green.withValues(alpha: 0.15)
+                          : Colors.orange.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: _safeDataChannelState ==
+                                RTCDataChannelState.RTCDataChannelOpen
+                            ? Colors.green
+                            : Colors.orange,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _safeDataChannelState ==
+                                  RTCDataChannelState.RTCDataChannelOpen
+                              ? Icons.check_circle
+                              : Icons.sync_problem,
+                          size: 14,
+                          color: _safeDataChannelState ==
+                                  RTCDataChannelState.RTCDataChannelOpen
+                              ? Colors.green
+                              : Colors.orange,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'DataChannel: ${_safeDataChannelState?.name ?? 'Closed'}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: _safeDataChannelState ==
+                                    RTCDataChannelState.RTCDataChannelOpen
+                                ? Colors.green
+                                : Colors.orange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (_safeDataChannelState !=
+                      RTCDataChannelState.RTCDataChannelOpen)
+                    PanelActionButton(
+                      icon: Icons.refresh,
+                      label: 'Reopen Channel',
+                      tooltipStr:
+                          'Re-create and open a new DataChannel on the active PeerConnection',
+                      onPressed: _reopenDataChannel,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Text Message Input Row
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
@@ -1799,17 +2571,227 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                 children: [
                   _field(
                     _dataMessage,
-                    'Test message to libdatachannel peer',
-                    width: 340,
+                    'Text Message (String)',
+                    width: 320,
                   ),
                   PanelActionButton(
                     icon: Icons.send,
-                    label: 'Send Message',
-                    tooltipStr: 'Send string over WebRTC DataChannel',
+                    label: 'Send Text',
+                    tooltipStr: 'Send text string over WebRTC DataChannel',
                     onPressed: _sendDataMessage,
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
+              // Byte Array Input Row & Presets Menu
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _field(
+                    _byteInputCtrl,
+                    'Byte Array (Hex: 01 02 AA FF / 0x01, 0x02)',
+                    width: 320,
+                  ),
+                  PanelActionButton(
+                    icon: Icons.data_array,
+                    label: 'Send Byte Array',
+                    tooltipStr:
+                        'Send binary byte array (Uint8List) over WebRTC DataChannel',
+                    onPressed: _sendByteArray,
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'Byte Array Presets',
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: c.border),
+                        borderRadius: BorderRadius.circular(4),
+                        color: c.surface,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.list_alt, size: 16, color: c.foreground),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Byte Presets',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: c.foreground,
+                            ),
+                          ),
+                          const Icon(Icons.arrow_drop_down, size: 16),
+                        ],
+                      ),
+                    ),
+                    onSelected: (presetVal) {
+                      setState(() {
+                        _byteInputCtrl.text = presetVal;
+                      });
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: '01 00 00 00',
+                        child: Text('Ping Packet: 01 00 00 00 (4 bytes)'),
+                      ),
+                      PopupMenuItem(
+                        value: 'AA BB CC DD EE FF 00 11',
+                        child: Text('Sync Header: AA BB CC DD EE FF 00 11 (8 bytes)'),
+                      ),
+                      PopupMenuItem(
+                        value: '00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F',
+                        child: Text('Sequential 16-Bytes: 00..0F'),
+                      ),
+                      PopupMenuItem(
+                        value: 'FF FF FF FF 55 55 55 55 AA AA AA AA 00 00 00 00',
+                        child: Text('Bit Patterns: FF/55/AA/00 (16 bytes)'),
+                      ),
+                      PopupMenuItem(
+                        value: '48 65 6C 6C 6F 20 57 65 62 52 54 43 21',
+                        child: Text('ASCII "Hello WebRTC!" in Hex (13 bytes)'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // File Transfer Row & Menu
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _field(
+                    _fileInfoCtrl,
+                    'Selected File (Click "Open File" to pick)',
+                    width: 320,
+                  ),
+                  PanelActionButton(
+                    icon: Icons.folder_open,
+                    label: 'Open File',
+                    tooltipStr:
+                        'Open file picker to select a file for DataChannel transfer',
+                    onPressed: () => _pickFile(),
+                  ),
+                  PanelActionButton(
+                    icon:
+                        _isSendingFile ? Icons.hourglass_top : Icons.file_upload,
+                    label: _isSendingFile ? 'Sending…' : 'Send File',
+                    tooltipStr:
+                        'Send selected file over WebRTC DataChannel (chunked binary)',
+                    onPressed: _isSendingFile ? null : () => _sendFile(),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'File Transfer Options',
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: c.border),
+                        borderRadius: BorderRadius.circular(4),
+                        color: c.surface,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.more_horiz, size: 16, color: c.foreground),
+                          const SizedBox(width: 4),
+                          Text(
+                            'File Menu',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: c.foreground,
+                            ),
+                          ),
+                          const Icon(Icons.arrow_drop_down, size: 16),
+                        ],
+                      ),
+                    ),
+                    onSelected: (option) {
+                      if (option == 'single_named') {
+                        _sendFile(mode: 'single_named');
+                      } else if (option == 'single_unnamed') {
+                        _sendFile(mode: 'single_unnamed');
+                      } else if (option == 'raw') {
+                        _sendFile(mode: 'raw');
+                      } else if (option == 'chunked_02') {
+                        _sendFile(mode: 'chunked_02', chunkSize: 16384);
+                      } else if (option == 'multi_chunked') {
+                        _sendFile(mode: 'multi_chunked', chunkSize: 16384);
+                      } else if (option == 'loadHex') {
+                        _pickFile(loadToHexField: true);
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: 'single_named',
+                        child: Text(
+                          'Send [0x02 + Filename + Data] (Default / Embedded File)',
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'single_unnamed',
+                        child: Text('Send [0x02 + Data] (Single Payload)'),
+                      ),
+                      PopupMenuItem(
+                        value: 'raw',
+                        child: Text('Send Raw Binary File (No Header)'),
+                      ),
+                      PopupMenuDivider(),
+                      PopupMenuItem(
+                        value: 'chunked_02',
+                        child: Text('Send Chunked (16 KB Chunks with 0x02 Header)'),
+                      ),
+                      PopupMenuItem(
+                        value: 'multi_chunked',
+                        child: Text(
+                          'Send Multi-Phase (0x02 Start / 0x03 Chunks / 0x04 End)',
+                        ),
+                      ),
+                      PopupMenuDivider(),
+                      PopupMenuItem(
+                        value: 'loadHex',
+                        child: Text('Open File & Load into Hex Field'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              if (_isSendingFile) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value:
+                              _fileSendProgress > 0 ? _fileSendProgress : null,
+                          minHeight: 6,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${(_fileSendProgress * 100).toInt()}%',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: c.muted,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
