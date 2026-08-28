@@ -155,6 +155,14 @@ at NORDIC nRF/Thingy:53
 - 2026.08.28
   - add mqtt panel
   - fixed to play video at WebRTC while changes panels
+  - install shied for windows added (D:\GIT\GitHub\sanc_term\dist)
+
+  ```bash
+  $ powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+  .\scripts\build_windows_installer.ps1 -SkipFlutterBuild
+  -InnoCompilerPath "C:\Users\Louiey\AppData\Local\Programs\Inno
+  Setup 6\ISCC.exe"
+  ```
 
 ## Info
 

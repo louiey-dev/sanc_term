@@ -54,7 +54,7 @@ app.*.map.json
 /test_bin
 /web
 /windows
-/installer
+/installer/cache/
 /dist
 
 # FVM Version Cache
