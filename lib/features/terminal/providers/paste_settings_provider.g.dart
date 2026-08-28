@@ -7,7 +7,7 @@ part of 'paste_settings_provider.dart';
 // **************************************************************************
 
 String _$pasteSettingsNotifierHash() =>
-    r'65728e970dd0042e59bb760734d52b6780748775';
+    r'0c349dfd57f14e0aae48f2f99b379289fdc40025';
 
 /// See also [PasteSettingsNotifier].
 @ProviderFor(PasteSettingsNotifier)

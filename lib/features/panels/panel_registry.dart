@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sanc_term/features/panels/bluetooth/bluetooth_le.dart';
 import 'package:sanc_term/features/panels/common/cm_cmd_history.dart';
 import 'package:sanc_term/features/panels/common/cm_general_settings.dart';
+import 'package:sanc_term/features/panels/common/cm_mqtt.dart';
 import 'package:sanc_term/features/panels/common/cm_time_setting.dart';
 import 'package:sanc_term/features/panels/common/cm_udp.dart';
 import 'package:sanc_term/features/panels/common/cm_webrtc.dart';
@@ -79,6 +80,12 @@ const panelGroups = [
         label: 'UDP',
         description: 'Send/receive UDP datagrams',
         icon: Icons.wifi_tethering,
+      ),
+      PanelEntry(
+        id: 'cm_mqtt',
+        label: 'MQTT',
+        description: 'MQTT connection state demonstration',
+        icon: Icons.cloud_outlined,
       ),
       PanelEntry(
         id: 'cm_webrtc',
@@ -448,6 +455,7 @@ Map<String, Widget Function()> get _realPanels => {
   // Common
   'cm_cmd_history': () => const CmCmdHistoryPanel(),
   'cm_general_settings': () => const CmGeneralSettingsPanel(),
+  'cm_mqtt': () => const CmMqttPanel(),
   'cm_time_setting': () => const CmTimeSettingPanel(),
   'cm_udp': () => const CmUdpPanel(),
   'cm_webrtc': () => const CmWebRtcPanel(),

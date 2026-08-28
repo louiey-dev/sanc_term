@@ -36,3 +36,7 @@
 - All generated md files should be saved in .agents/doc folder
 - All generated md file's name should be purpose_yyyymmdd_hhmm.md
   - for example, webrtc_implementation_plan_20260805_1752.md
+
+## Rules
+
+- Do not claim that checks you did not run were successful. In your final response, clearly distinguish the commands you actually ran from their results.

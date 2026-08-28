@@ -152,6 +152,9 @@ at NORDIC nRF/Thingy:53
 - 2026.08.25
   - add webrtc data channel transfer
     - text messages, byte array, bin files transfer is verified
+- 2026.08.28
+  - add mqtt panel
+  - fixed to play video at WebRTC while changes panels
 
 ## Info
 

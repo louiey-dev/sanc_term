@@ -32,12 +32,13 @@ CmWebRtcParamsState _loadWebRtcParamsFromHive() {
       final mode = modeStr == 'webSocket'
           ? WebRtcSignalingMode.webSocket
           : (modeStr == 'webBrowser' || modeStr == 'embeddedBrowser'
-              ? WebRtcSignalingMode.webBrowser
-              : WebRtcSignalingMode.manualSdp);
+                ? WebRtcSignalingMode.webBrowser
+                : WebRtcSignalingMode.manualSdp);
 
       final vhStr = box.get('webrtc_viewport_height');
-      final viewportHeight =
-          vhStr != null ? double.tryParse(vhStr) ?? 360.0 : 360.0;
+      final viewportHeight = vhStr != null
+          ? double.tryParse(vhStr) ?? 360.0
+          : 360.0;
 
       final binaryEnv = box.get('webrtc_binary_envelope') != 'false';
 
@@ -72,7 +73,10 @@ void _saveWebRtcParamsToHive(CmWebRtcParamsState state) {
       box.put('webrtc_stun_server', state.stunServer);
       box.put('webrtc_preferred_codec', state.preferredCodec);
       box.put('webrtc_viewport_height', state.viewportHeight.toString());
-      box.put('webrtc_binary_envelope', state.useBinaryHeaderEnvelope.toString());
+      box.put(
+        'webrtc_binary_envelope',
+        state.useBinaryHeaderEnvelope.toString(),
+      );
     }
   } catch (_) {}
 }
@@ -164,6 +168,30 @@ final cmWebRtcParamsProvider = StateProvider<CmWebRtcParamsState>(
   (ref) => _loadWebRtcParamsFromHive(),
 );
 
+/// Long-lived WebRTC resources that must survive routed panel replacement.
+class CmWebRtcSession {
+  RTCPeerConnection? peerConnection;
+  RTCDataChannel? dataChannel;
+  MediaStream? remoteStream;
+  final List<RTCDataChannel> channels = [];
+
+  Future<void> close() async {
+    final peer = peerConnection;
+    peerConnection = null;
+    dataChannel = null;
+    remoteStream = null;
+    channels.clear();
+    await peer?.close();
+    await peer?.dispose();
+  }
+}
+
+final cmWebRtcSessionProvider = Provider<CmWebRtcSession>((ref) {
+  final session = CmWebRtcSession();
+  ref.onDispose(session.close);
+  return session;
+});
+
 class CmWebRtcPanel extends ConsumerStatefulWidget {
   const CmWebRtcPanel({super.key});
 
@@ -172,6 +200,7 @@ class CmWebRtcPanel extends ConsumerStatefulWidget {
 }
 
 class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
+  late final CmWebRtcSession _session;
   late final TextEditingController _signalingUrl;
   late final TextEditingController _webUrlCtrl;
   late final TextEditingController _roomId;
@@ -205,6 +234,10 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
   @override
   void initState() {
     super.initState();
+    _session = ref.read(cmWebRtcSessionProvider);
+    _peerConnection = _session.peerConnection;
+    _dataChannel = _session.dataChannel;
+    _allChannels.addAll(_session.channels);
     final saved = ref.read(cmWebRtcParamsProvider);
     _signalingUrl = TextEditingController(text: saved.signalingUrl);
     _webUrlCtrl = TextEditingController(text: saved.webUrl);
@@ -252,7 +285,10 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
       final url = _webUrlCtrl.text.trim();
       final uri = Uri.tryParse(url);
       if (uri != null) {
-        final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        final launched = await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication,
+        );
         if (launched) {
           _addLog('Opened external web browser for: $url');
           return;
@@ -266,14 +302,115 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     } catch (e) {
       _addLog('Error opening web browser: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error opening web browser: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error opening web browser: $e')));
     }
   }
 
   Future<void> _initVideoRenderer() async {
     await _remoteRenderer.initialize();
+    _remoteRenderer.srcObject = _session.remoteStream;
+    if (_peerConnection != null) {
+      _reattachSessionCallbacks();
+      _startPacketStatsLogging();
+      _startStatePolling();
+    }
+    if (mounted) setState(() {});
+  }
+
+  void _setPeerConnection(RTCPeerConnection? peer) {
+    _peerConnection = peer;
+    _session.peerConnection = peer;
+  }
+
+  void _setDataChannel(RTCDataChannel? channel) {
+    _dataChannel = channel;
+    _session.dataChannel = channel;
+    if (channel != null && !_session.channels.contains(channel)) {
+      _session.channels.add(channel);
+    }
+  }
+
+  void _setRemoteStream(MediaStream stream) {
+    _session.remoteStream = stream;
+    _remoteRenderer.srcObject = stream;
+  }
+
+  void _reattachSessionCallbacks() {
+    final peer = _peerConnection;
+    if (peer == null) return;
+
+    peer.onConnectionState = (state) {
+      _addLog('PeerConnection State: ${state.name}');
+      _updateConnectionState();
+    };
+    peer.onIceConnectionState = (state) {
+      _addLog('ICE Connection State: ${state.name}');
+      _updateConnectionState();
+    };
+    peer.onTrack = _handleRestoredTrack;
+    peer.onDataChannel = (channel) {
+      _addLog('DataChannel received: ${channel.label}');
+      _setupDataChannel(channel);
+    };
+
+    for (final channel in List<RTCDataChannel>.from(_allChannels)) {
+      _setupDataChannel(channel);
+    }
+  }
+
+  Future<void> _handleRestoredTrack(RTCTrackEvent event) async {
+    final params = ref.read(cmWebRtcParamsProvider);
+    if (event.track.kind == 'video') {
+      event.track.enabled = params.enableVideo;
+      if (event.streams.isNotEmpty) {
+        _setRemoteStream(event.streams.first);
+      } else {
+        final stream = await createLocalMediaStream('remote_stream');
+        await stream.addTrack(event.track);
+        _setRemoteStream(stream);
+      }
+      if (mounted) setState(() {});
+    } else if (event.track.kind == 'audio') {
+      event.track.enabled = params.enableAudio;
+    }
+  }
+
+  void _detachUiCallbacks() {
+    final peer = _peerConnection;
+    if (peer != null) {
+      peer.onIceCandidate = (_) {};
+      peer.onConnectionState = (_) {};
+      peer.onIceConnectionState = (_) {};
+      peer.onTrack = (event) async {
+        if (event.track.kind != 'video') return;
+        if (event.streams.isNotEmpty) {
+          _session.remoteStream = event.streams.first;
+          return;
+        }
+        final stream = await createLocalMediaStream('remote_stream');
+        await stream.addTrack(event.track);
+        _session.remoteStream = stream;
+      };
+      peer.onDataChannel = (channel) {
+        if (!_session.channels.contains(channel)) {
+          _session.channels.add(channel);
+        }
+        if (channel.state == RTCDataChannelState.RTCDataChannelOpen) {
+          _session.dataChannel = channel;
+        }
+      };
+    }
+
+    for (final channel in _allChannels) {
+      channel.onDataChannelState = (state) {
+        if (state == RTCDataChannelState.RTCDataChannelOpen) {
+          _session.dataChannel = channel;
+        }
+      };
+      channel.onMessage = (_) {};
+    }
   }
 
   void _showFullscreenVideo() {
@@ -375,10 +512,10 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
   void dispose() {
     _stateTimer?.cancel();
     _statsTimer?.cancel();
+    _detachUiCallbacks();
     _webUrlCtrl.dispose();
+    _remoteRenderer.srcObject = null;
     _remoteRenderer.dispose();
-    _peerConnection?.close();
-    _peerConnection?.dispose();
     _signalingUrl.dispose();
     _roomId.dispose();
     _peerId.dispose();
@@ -430,7 +567,8 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
         final type = report.type.toLowerCase();
         final vals = report.values;
 
-        final isRtpInbound = type == 'inbound-rtp' ||
+        final isRtpInbound =
+            type == 'inbound-rtp' ||
             type == 'inboundrtp' ||
             (type == 'ssrc' &&
                 (vals.containsKey('packetsReceived') ||
@@ -438,7 +576,8 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                     report.id.contains('inbound')));
 
         if (isRtpInbound) {
-          String? kind = vals['kind']?.toString().toLowerCase() ??
+          String? kind =
+              vals['kind']?.toString().toLowerCase() ??
               vals['mediaType']?.toString().toLowerCase();
 
           if (kind == null) {
@@ -465,8 +604,9 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
             videoPackets += pkts;
             videoBytes += bytes;
             videoPacketsLost += lost;
-            videoFramesDecoded +=
-                _parseInt(vals['framesDecoded'] ?? vals['framesReceived']);
+            videoFramesDecoded += _parseInt(
+              vals['framesDecoded'] ?? vals['framesReceived'],
+            );
           }
         }
       }
@@ -524,7 +664,7 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
       ],
     };
 
-    _peerConnection = await createPeerConnection(configuration, constraints);
+    _setPeerConnection(await createPeerConnection(configuration, constraints));
     _startPacketStatsLogging();
 
     final params = ref.read(cmWebRtcParamsProvider);
@@ -582,14 +722,14 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
         event.track.enabled = params.enableVideo;
         if (event.streams.isNotEmpty) {
           setState(() {
-            _remoteRenderer.srcObject = event.streams[0];
+            _setRemoteStream(event.streams[0]);
           });
         } else {
           try {
             final newStream = await createLocalMediaStream('remote_stream');
             await newStream.addTrack(event.track);
             setState(() {
-              _remoteRenderer.srcObject = newStream;
+              _setRemoteStream(newStream);
             });
           } catch (e) {
             _addLog('Error setting up standalone track: $e');
@@ -616,7 +756,7 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
         try {
           if (channel.state == RTCDataChannelState.RTCDataChannelOpen) {
             if (_dataChannel != channel) {
-              _dataChannel = channel;
+              _setDataChannel(channel);
               _addLog(
                 'Polled DataChannel "${channel.label}" is OPEN and ACTIVE!',
               );
@@ -647,17 +787,20 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     if (!_allChannels.contains(channel)) {
       _allChannels.add(channel);
     }
+    if (!_session.channels.contains(channel)) {
+      _session.channels.add(channel);
+    }
 
     // Only set as primary _dataChannel if none exists or if this channel is open
     if (_dataChannel == null ||
         channel.state == RTCDataChannelState.RTCDataChannelOpen) {
-      _dataChannel = channel;
+      _setDataChannel(channel);
     }
 
     channel.onDataChannelState = (state) {
       _addLog('DataChannel "${channel.label}" State changed to: ${state.name}');
       if (state == RTCDataChannelState.RTCDataChannelOpen) {
-        _dataChannel = channel;
+        _setDataChannel(channel);
         _addLog(
           'Active DataChannel set to "${channel.label}". Ready for messaging!',
         );
@@ -757,7 +900,7 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     };
 
     if (channel.state == RTCDataChannelState.RTCDataChannelOpen) {
-      _dataChannel = channel;
+      _setDataChannel(channel);
       _updateConnectionState();
     }
 
@@ -965,8 +1108,9 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
         .take(maxLen)
         .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
         .toList();
-    final suffix =
-        bytes.length > maxLen ? ' ... (+${bytes.length - maxLen} bytes)' : '';
+    final suffix = bytes.length > maxLen
+        ? ' ... (+${bytes.length - maxLen} bytes)'
+        : '';
     return '${hexParts.join(' ')}$suffix';
   }
 
@@ -1051,8 +1195,10 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
         'Re-creating DataChannel "datachannel" on active PeerConnection...',
       );
       final dcInit = RTCDataChannelInit()..id = 0;
-      final dc =
-          await _peerConnection!.createDataChannel('datachannel', dcInit);
+      final dc = await _peerConnection!.createDataChannel(
+        'datachannel',
+        dcInit,
+      );
       _setupDataChannel(dc);
       _addLog('New DataChannel created. Waiting for open state...');
       for (int i = 0; i < 20; i++) {
@@ -1099,7 +1245,9 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     if (_dataChannel == null ||
         state != RTCDataChannelState.RTCDataChannelOpen) {
       if (_peerConnection != null) {
-        _addLog('DataChannel is not open (State: "$state"). Attempting auto-reopen...');
+        _addLog(
+          'DataChannel is not open (State: "$state"). Attempting auto-reopen...',
+        );
         await _reopenDataChannel();
         state = _safeDataChannelState;
       }
@@ -1157,7 +1305,9 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     if (_dataChannel == null ||
         state != RTCDataChannelState.RTCDataChannelOpen) {
       if (_peerConnection != null) {
-        _addLog('DataChannel is not open (State: "$state"). Attempting auto-reopen...');
+        _addLog(
+          'DataChannel is not open (State: "$state"). Attempting auto-reopen...',
+        );
         await _reopenDataChannel();
         state = _safeDataChannelState;
       }
@@ -1206,8 +1356,7 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
       if (loadToHexField) {
         final f = File(filePath);
         final bytes = await f.readAsBytes();
-        final previewBytes =
-            bytes.length > 256 ? bytes.sublist(0, 256) : bytes;
+        final previewBytes = bytes.length > 256 ? bytes.sublist(0, 256) : bytes;
         final hexStr = _formatBytesHex(previewBytes, maxLen: 256);
         _byteInputCtrl.text = hexStr;
         _addLog(
@@ -1219,10 +1368,7 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     }
   }
 
-  Future<void> _sendFile({
-    String mode = 'auto',
-    int chunkSize = 16384,
-  }) async {
+  Future<void> _sendFile({String mode = 'auto', int chunkSize = 16384}) async {
     if (_selectedFilePath == null || !File(_selectedFilePath!).existsSync()) {
       await _pickFile();
       if (_selectedFilePath == null) return;
@@ -1243,7 +1389,9 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     if (_dataChannel == null ||
         state != RTCDataChannelState.RTCDataChannelOpen) {
       final curState = state?.name ?? 'closed';
-      _addLog('Cannot send file. DataChannel is not open (State: "$curState").');
+      _addLog(
+        'Cannot send file. DataChannel is not open (State: "$curState").',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1275,8 +1423,8 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
 
       final effectiveMode = mode == 'auto'
           ? (params.useBinaryHeaderEnvelope
-              ? (totalBytes <= 524288 ? 'single_named' : 'chunked_02')
-              : 'raw')
+                ? (totalBytes <= 524288 ? 'single_named' : 'chunked_02')
+                : 'raw')
           : mode;
 
       if (effectiveMode == 'single_named') {
@@ -1424,9 +1572,9 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
       debugPrint('[WebRTC DataChannel File Error] $e');
       _addLog('Error sending file: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to send file: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to send file: $e')));
       }
     } finally {
       if (mounted) {
@@ -1494,11 +1642,13 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
               if (sdp != null) {
                 // Always close old peer connection to ensure fresh ICE ufrag/pwd credentials
                 await _peerConnection?.close();
-                _peerConnection = null;
+                _setPeerConnection(null);
                 await _createPeerConnection();
 
                 // Auto-sync target Room ID in UI if senderId is provided
-                if (senderId.isNotEmpty && senderId != 'null' && senderId != localId) {
+                if (senderId.isNotEmpty &&
+                    senderId != 'null' &&
+                    senderId != localId) {
                   _roomId.text = senderId;
                 }
 
@@ -1543,7 +1693,10 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                   'description': fullAnswerSdp,
                   'sdp': fullAnswerSdp,
                 };
-                if (jsonMap.containsKey('id') || (senderId.isNotEmpty && senderId != 'null' && senderId != localId)) {
+                if (jsonMap.containsKey('id') ||
+                    (senderId.isNotEmpty &&
+                        senderId != 'null' &&
+                        senderId != localId)) {
                   answerMap['id'] = jsonMap['id'] ?? senderId;
                 }
                 final answerMsg = jsonEncode(answerMap);
@@ -1842,7 +1995,7 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     }
   }
 
-  void _disconnect() {
+  Future<void> _disconnect() async {
     _stateTimer?.cancel();
     _statsTimer?.cancel();
     _prevAudioPackets = 0;
@@ -1853,7 +2006,7 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
     _allChannels.clear();
     _wsSocket?.close();
     _wsSocket = null;
-    _peerConnection?.close();
+    await _session.close();
     _peerConnection = null;
     _dataChannel = null;
     _localAnswerCtrl.clear();
@@ -1945,11 +2098,16 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                     _field(_peerId, 'Peer ID', width: 120),
                   ],
                   if (params.mode == WebRtcSignalingMode.webBrowser) ...[
-                    _field(_webUrlCtrl, 'Web Stream Page URL (http://...)', width: 340),
+                    _field(
+                      _webUrlCtrl,
+                      'Web Stream Page URL (http://...)',
+                      width: 340,
+                    ),
                     PanelActionButton(
                       icon: Icons.open_in_browser,
                       label: 'Open Web Stream Page',
-                      tooltipStr: 'Open live WebRTC video stream page in system web browser',
+                      tooltipStr:
+                          'Open live WebRTC video stream page in system web browser',
                       onPressed: _openExternalBrowser,
                     ),
                   ],
@@ -2313,7 +2471,11 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.language, size: 48, color: Colors.white54),
+                              const Icon(
+                                Icons.language,
+                                size: 48,
+                                color: Colors.white54,
+                              ),
                               const SizedBox(height: 12),
                               Text(
                                 _webUrlCtrl.text.trim().isEmpty
@@ -2327,7 +2489,10 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                               ),
                               const SizedBox(height: 12),
                               ElevatedButton.icon(
-                                icon: const Icon(Icons.open_in_browser, size: 18),
+                                icon: const Icon(
+                                  Icons.open_in_browser,
+                                  size: 18,
+                                ),
                                 label: const Text('Open Web Stream Page'),
                                 onPressed: _openExternalBrowser,
                               ),
@@ -2335,70 +2500,70 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                           ),
                         )
                       : (!params.enableVideo
-                          ? Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.videocam_off,
-                                    size: 48,
-                                    color: Colors.white38,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  const Text(
-                                    'Video Track OFF (Muted)',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  const Text(
-                                    'Toggle "Video Track: ON" above to resume video feed',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.videocam_off,
+                                      size: 48,
                                       color: Colors.white38,
-                                      fontSize: 11,
                                     ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : (_remoteRenderer.srcObject != null
-                              ? RTCVideoView(
-                                  _remoteRenderer,
-                                  objectFit: RTCVideoViewObjectFit
-                                      .RTCVideoViewObjectFitContain,
-                                )
-                              : Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        params.isConnected
-                                            ? Icons.videocam
-                                            : Icons.video_camera_front,
-                                        size: 48,
-                                        color: params.isConnected
-                                            ? c.primary
-                                            : Colors.white38,
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'Video Track OFF (Muted)',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
                                       ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        params.isConnected
-                                            ? 'WebRTC Media Connection Active (DataChannel Only / Waiting for Video Track)'
-                                            : 'Camera Stream Disconnected',
-                                        textAlign: TextAlign.center,
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 13,
-                                        ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'Toggle "Video Track: ON" above to resume video feed',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Colors.white38,
+                                        fontSize: 11,
                                       ),
-                                    ],
-                                  ),
-                                ))),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : (_remoteRenderer.srcObject != null
+                                  ? RTCVideoView(
+                                      _remoteRenderer,
+                                      objectFit: RTCVideoViewObjectFit
+                                          .RTCVideoViewObjectFitContain,
+                                    )
+                                  : Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            params.isConnected
+                                                ? Icons.videocam
+                                                : Icons.video_camera_front,
+                                            size: 48,
+                                            color: params.isConnected
+                                                ? c.primary
+                                                : Colors.white38,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            params.isConnected
+                                                ? 'WebRTC Media Connection Active (DataChannel Only / Waiting for Video Track)'
+                                                : 'Camera Stream Disconnected',
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ))),
                 ),
               ),
               // Draggable Resize Handle
@@ -2415,8 +2580,7 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                   _saveWebRtcParamsToHive(ref.read(cmWebRtcParamsProvider));
                 },
                 onDoubleTap: () {
-                  final next =
-                      params.viewportHeight == 360.0 ? 560.0 : 360.0;
+                  final next = params.viewportHeight == 360.0 ? 560.0 : 360.0;
                   final newState = ref
                       .read(cmWebRtcParamsProvider.notifier)
                       .update((s) => s.copyWith(viewportHeight: next));
@@ -2506,16 +2670,20 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
               Row(
                 children: [
                   Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: _safeDataChannelState ==
+                      color:
+                          _safeDataChannelState ==
                               RTCDataChannelState.RTCDataChannelOpen
                           ? Colors.green.withValues(alpha: 0.15)
                           : Colors.orange.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(
-                        color: _safeDataChannelState ==
+                        color:
+                            _safeDataChannelState ==
                                 RTCDataChannelState.RTCDataChannelOpen
                             ? Colors.green
                             : Colors.orange,
@@ -2530,7 +2698,8 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                               ? Icons.check_circle
                               : Icons.sync_problem,
                           size: 14,
-                          color: _safeDataChannelState ==
+                          color:
+                              _safeDataChannelState ==
                                   RTCDataChannelState.RTCDataChannelOpen
                               ? Colors.green
                               : Colors.orange,
@@ -2541,7 +2710,8 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: _safeDataChannelState ==
+                            color:
+                                _safeDataChannelState ==
                                     RTCDataChannelState.RTCDataChannelOpen
                                 ? Colors.green
                                 : Colors.orange,
@@ -2569,11 +2739,7 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                 runSpacing: 8,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  _field(
-                    _dataMessage,
-                    'Text Message (String)',
-                    width: 320,
-                  ),
+                  _field(_dataMessage, 'Text Message (String)', width: 320),
                   PanelActionButton(
                     icon: Icons.send,
                     label: 'Send Text',
@@ -2642,14 +2808,18 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                       ),
                       PopupMenuItem(
                         value: 'AA BB CC DD EE FF 00 11',
-                        child: Text('Sync Header: AA BB CC DD EE FF 00 11 (8 bytes)'),
+                        child: Text(
+                          'Sync Header: AA BB CC DD EE FF 00 11 (8 bytes)',
+                        ),
                       ),
                       PopupMenuItem(
-                        value: '00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F',
+                        value:
+                            '00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F',
                         child: Text('Sequential 16-Bytes: 00..0F'),
                       ),
                       PopupMenuItem(
-                        value: 'FF FF FF FF 55 55 55 55 AA AA AA AA 00 00 00 00',
+                        value:
+                            'FF FF FF FF 55 55 55 55 AA AA AA AA 00 00 00 00',
                         child: Text('Bit Patterns: FF/55/AA/00 (16 bytes)'),
                       ),
                       PopupMenuItem(
@@ -2680,8 +2850,9 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                     onPressed: () => _pickFile(),
                   ),
                   PanelActionButton(
-                    icon:
-                        _isSendingFile ? Icons.hourglass_top : Icons.file_upload,
+                    icon: _isSendingFile
+                        ? Icons.hourglass_top
+                        : Icons.file_upload,
                     label: _isSendingFile ? 'Sending…' : 'Send File',
                     tooltipStr:
                         'Send selected file over WebRTC DataChannel (chunked binary)',
@@ -2749,7 +2920,9 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                       PopupMenuDivider(),
                       PopupMenuItem(
                         value: 'chunked_02',
-                        child: Text('Send Chunked (16 KB Chunks with 0x02 Header)'),
+                        child: Text(
+                          'Send Chunked (16 KB Chunks with 0x02 Header)',
+                        ),
                       ),
                       PopupMenuItem(
                         value: 'multi_chunked',
@@ -2774,8 +2947,9 @@ class _CmWebRtcPanelState extends ConsumerState<CmWebRtcPanel> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          value:
-                              _fileSendProgress > 0 ? _fileSendProgress : null,
+                          value: _fileSendProgress > 0
+                              ? _fileSendProgress
+                              : null,
                           minHeight: 6,
                         ),
                       ),
